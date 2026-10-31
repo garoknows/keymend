@@ -1,38 +1,22 @@
 import AppKit
 import SwiftUI
 
-/// The menu bar icon: a small keycap with a stitch across it, drawn as a template image so
-/// it matches light and dark menu bars.
-enum KeycapIcon {
+/// The menu bar icon: a bold capital K, drawn as a template image so it matches light and
+/// dark menu bars. It dims when paused and briefly turns heavier when Keymend makes a fix.
+enum MenuBarIcon {
     static func image(paused: Bool, pulse: Bool) -> NSImage {
         let size = NSSize(width: 18, height: 16)
-        let img = NSImage(size: size, flipped: false) { _ in
+        let img = NSImage(size: size, flipped: false) { rect in
             let alpha: CGFloat = paused ? 0.35 : 1
-            NSColor.black.withAlphaComponent(alpha).setStroke()
-            NSColor.black.withAlphaComponent(alpha).setFill()
-
-            // Keycap outline.
-            let cap = NSBezierPath(roundedRect: NSRect(x: 1.5, y: 1.5, width: 15, height: 13), xRadius: 3.5, yRadius: 3.5)
-            cap.lineWidth = 1.5
-            cap.stroke()
-
-            // The stitch: a slanted dashed seam with three cross stitches.
-            let seam = NSBezierPath()
-            seam.move(to: NSPoint(x: 4, y: 7))
-            seam.line(to: NSPoint(x: 14, y: 9))
-            seam.lineWidth = pulse ? 1.9 : 1.3
-            seam.setLineDash([1.8, 1.4], count: 2, phase: 0)
-            seam.lineCapStyle = .round
-            seam.stroke()
-            for x in [6.0, 9.0, 12.0] {
-                let y = 7 + (x - 4) * 0.2
-                let st = NSBezierPath()
-                st.move(to: NSPoint(x: x - 0.5, y: y - 2.2))
-                st.line(to: NSPoint(x: x + 0.5, y: y + 2.2))
-                st.lineWidth = pulse ? 1.6 : 1.2
-                st.lineCapStyle = .round
-                st.stroke()
-            }
+            let font = NSFont.systemFont(ofSize: 15, weight: pulse ? .black : .bold)
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: NSColor.black.withAlphaComponent(alpha),
+            ]
+            let k = NSAttributedString(string: "K", attributes: attrs)
+            // draw(at:) takes the bottom of the descender; put the baseline so the cap height is centered.
+            let baseline = (rect.height - font.capHeight) / 2
+            k.draw(at: NSPoint(x: (rect.width - k.size().width) / 2, y: baseline + font.descender))
             return true
         }
         img.isTemplate = true

@@ -54,7 +54,7 @@ struct MenuPicture: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Spacer()
-                Image(nsImage: KeycapIcon.image(paused: false, pulse: false)).renderingMode(.template)
+                Image(nsImage: MenuBarIcon.image(paused: false, pulse: false)).renderingMode(.template)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.1)))
                 Text("Fri 9:41").font(.system(size: 13))

@@ -11,7 +11,7 @@ struct KeymendApp: App {
         MenuBarExtra {
             MenuContent(model: model)
         } label: {
-            Image(nsImage: KeycapIcon.image(paused: !model.isEnabled || !model.permissionsGranted, pulse: model.pulse))
+            Image(nsImage: MenuBarIcon.image(paused: !model.isEnabled || !model.permissionsGranted, pulse: model.pulse))
         }
         .menuBarExtraStyle(.menu)
 

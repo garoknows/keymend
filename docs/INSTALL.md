@@ -7,15 +7,9 @@ Keymend needs macOS 14 Sonoma or later.
 1. Download the latest `.dmg` from [GitHub Releases](https://github.com/garoknows/keymend/releases).
 2. Open it and drag **Keymend** onto the **Applications** folder.
 
-## 2. Open it the first time
+## 2. Open it
 
-Preview builds are signed but not yet notarized by Apple, so macOS asks you to confirm once:
-
-1. Open **Applications** and double-click **Keymend**. macOS says it can't verify the app. Click **Done**.
-2. Open **System Settings → Privacy & Security** and scroll down to the **Security** section.
-3. Next to "Keymend was blocked to protect your Mac", click **Open Anyway**, then confirm with your password or Touch ID.
-
-You only do this once. Notarized releases will open normally.
+Double-click **Keymend** in Applications. It's signed with a Developer ID and notarized by Apple, so it opens normally. macOS may ask once to confirm that you want to open an app downloaded from the internet; click **Open**.
 
 ## 3. Allow the two permissions
 
@@ -33,7 +27,7 @@ If a switch is on but the step stays grey, quit Keymend from its menu and open i
 
 ## 4. Use it
 
-Look for the keycap in your menu bar. Type as usual. The menu shows how many typos Keymend fixed today, a switch to pause it (or press Control-Option-K), and "Skip in [app]" for the app you're in.
+Look for the bold K in your menu bar. Type as usual. The menu shows how many typos Keymend fixed today, a switch to pause it (or press Control-Option-K), and "Skip in [app]" for the app you're in.
 
 Open **Settings** to turn on launch at login, edit the list of apps Keymend stays off in, and add words it should never change.
 

@@ -57,7 +57,7 @@ struct SetupView: View {
             )
             HStack {
                 Text(model.permissionsGranted
-                     ? "All set. Look for the keycap in your menu bar."
+                     ? "All set. Look for the K in your menu bar."
                      : "This window updates by itself when each step is done. If a switch is on but the step stays grey, quit and reopen Keymend.")
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

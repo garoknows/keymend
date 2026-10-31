@@ -1,5 +1,3 @@
-> **Early preview.** Keymend is being tested day to day by its author. It may miss words or misbehave. Releases are marked as pre-releases until it has proven itself.
-
 <p align="center"><img src="docs/images/icon.png" width="112" alt=""></p>
 
 <h1 align="center">keymend</h1>
@@ -27,8 +25,8 @@ Return and Tab end a word without fixing it, on purpose: in chat apps Return sen
 
 ## Install
 
-1. Download `Keymend-0.1.0.dmg` from [Releases](https://github.com/garoknows/keymend/releases), open it and drag **Keymend** into Applications.
-2. Preview builds are not yet notarized by Apple. The first time, open Keymend, then go to **System Settings → Privacy & Security** and click **Open Anyway**. ([Step-by-step guide](docs/INSTALL.md))
+1. Download `Keymend-1.0.0.dmg` from [Releases](https://github.com/garoknows/keymend/releases), open it and drag **Keymend** into Applications.
+2. Open Keymend. It's signed with a Developer ID and notarized by Apple, so it opens normally. ([Step-by-step guide](docs/INSTALL.md))
 3. Keymend opens a setup window that shows exactly where to click for its two permissions.
 
 <p align="center"><img src="docs/images/setup-window.png" width="560" alt="Keymend's setup window: step 1 Allow Input Monitoring, step 2 Allow Keymend to type fixes, each with a picture of System Settings marked with red boxes and numbers"></p>
@@ -41,7 +39,7 @@ cd keymend
 scripts/install.sh
 ```
 
-Apps you build yourself skip the "Open Anyway" step.
+Apps you build yourself are signed ad hoc for your Mac only.
 
 ## Permissions
 
@@ -83,7 +81,7 @@ brew install xcodegen && xcodegen generate       # Xcode project from project.ym
 
 The word engine and keyboard bridge live in `Packages/KeymendCore` with no UI. The harness tests feed real `CGEvent`s through the bridge into a simulated text field and check exactly what text arrives, including typing at 400 words per minute.
 
-## Known limits (v0.1)
+## Known limits (v1.0)
 
 - English-focused: it follows the Mac's current spell-checker language. More languages are planned for 1.1.
 - Accented letters typed with dead keys (Option-E, then E) end tracking for that word.
