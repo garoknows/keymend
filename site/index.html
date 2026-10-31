@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>keymend: spelling fixes in every Mac app</title>
+<meta name="description" content="Keymend is a free, open-source Mac menu bar app that fixes spelling as you type in every app, using Apple's built-in spell checker. Offline, no account, no tracking.">
+<meta property="og:title" content="keymend">
+<meta property="og:description" content="Spelling fixes as you type, in every Mac app. Free, open source, never online.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --ink: #1C2230;
+    --thread: #E4572E;
+    --paper: #F7F5F0;
+    --card: #FFFFFF;
+    --muted: #5B6272;
+    --line: #E4E0D6;
+    --ok: #2F7D5B;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #F2EFE8;
+      --paper: #151A24;
+      --card: #1C2230;
+      --muted: #A3A9B6;
+      --line: #2C3445;
+      --ok: #6BC79A;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #F2EFE8; --paper: #151A24; --card: #1C2230; --muted: #A3A9B6; --line: #2C3445; --ok: #6BC79A;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 17px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 20px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+  .brand img { width: 30px; height: 30px; }
+  .wordmark { font-family: ui-rounded, "SF Pro Rounded", -apple-system, sans-serif; font-weight: 600; font-size: 22px; letter-spacing: -0.01em; }
+  nav a { color: var(--muted); text-decoration: none; margin-left: 18px; font-size: 15px; }
+  nav a:hover { color: var(--ink); }
+  .note { display: inline-block; font-size: 13px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; margin-bottom: 18px; }
+  .hero { padding: 48px 0 24px; }
+  h1 { font-family: ui-rounded, "SF Pro Rounded", -apple-system, sans-serif; font-weight: 600; font-size: clamp(34px, 6vw, 54px); line-height: 1.08; letter-spacing: -0.02em; margin: 0 0 18px; }
+  h1 em { font-style: normal; color: var(--thread); }
+  .lede { font-size: 19px; color: var(--muted); max-width: 640px; margin: 0 0 28px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn { display: inline-block; text-decoration: none; font-weight: 600; border-radius: 12px; padding: 12px 20px; font-size: 16px; }
+  .btn.primary { background: var(--thread); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.05); }
+  .btn.ghost { color: var(--ink); border: 1.5px solid var(--line); }
+  .small { font-size: 14px; color: var(--muted); }
+
+  .demo { margin: 44px 0 12px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: 0 12px 40px rgba(28,34,48,.08); }
+  .demo .bar { display: flex; align-items: center; gap: 7px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .demo .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--line); }
+  .demo .title { margin-left: 8px; font-size: 13px; color: var(--muted); }
+  .demo .cols { display: grid; grid-template-columns: 1fr 1fr; }
+  .demo .col { padding: 22px; min-height: 140px; }
+  .demo .col + .col { border-left: 1px solid var(--line); }
+  .demo .label { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 10px; }
+  .demo .text { font-size: 18px; white-space: pre-wrap; word-break: break-word; min-height: 3.2em; }
+  .typo { text-decoration: underline wavy #E5484D; text-underline-offset: 4px; }
+  .fixed { background: color-mix(in srgb, var(--thread) 16%, transparent); border-radius: 4px; transition: background 1.2s; }
+  .caret { display: inline-block; width: 2px; height: 1.1em; background: var(--ink); vertical-align: -0.15em; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+
+  section { padding: 40px 0; }
+  h2 { font-family: ui-rounded, "SF Pro Rounded", -apple-system, sans-serif; font-weight: 600; font-size: 28px; letter-spacing: -0.01em; margin: 0 0 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 16px; }
+  .card h3 { font-size: 16px; margin: 0 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  .promise h3::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--ok); margin-right: 8px; vertical-align: 1px; }
+  ol.steps { padding-left: 22px; margin: 0; }
+  ol.steps li { margin-bottom: 8px; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+  footer { padding: 36px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); margin-top: 24px; }
+  footer a { color: var(--muted); }
+  @media (max-width: 640px) {
+    .demo .cols { grid-template-columns: 1fr; }
+    .demo .col + .col { border-left: 0; border-top: 1px solid var(--line); }
+    nav a { margin-left: 12px; }
+    nav a.hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="./"><img src="icon.svg" alt=""><span class="wordmark">keymend</span></a>
+    <nav>
+      <a href="#privacy">Privacy</a>
+      <a class="hide-sm" href="#install">Install</a>
+      <a href="https://github.com/garoknows/keymend">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <span class="note">Early preview, being tested by its author</span>
+    <h1>Spelling fixes as you type, <em>in every Mac app.</em></h1>
+    <p class="lede">Mac autocorrect only works in some apps. In Chrome, Arc, Slack, Obsidian and chat apps, typos just get a red line. Keymend fixes them as you type, using Apple's own spell checker. It never goes online.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/garoknows/keymend/releases">Download for Mac</a>
+      <a class="btn ghost" href="https://github.com/garoknows/keymend">View the code</a>
+      <span class="small">Free and open source. macOS 14 or later.</span>
+    </div>
+
+    <div class="demo" aria-label="Before and after example">
+      <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="title">A chat app in your browser</span></div>
+      <div class="cols">
+        <div class="col">
+          <div class="label">Without Keymend</div>
+          <div class="text" id="before"></div>
+        </div>
+        <div class="col">
+          <div class="label">With Keymend</div>
+          <div class="text" id="after"></div>
+        </div>
+      </div>
+    </div>
+    <p class="small">Press Delete right after a fix to get your word back. Keymend then leaves that word alone.</p>
+  </div>
+
+  <section>
+    <h2>Quiet by design</h2>
+    <div class="grid">
+      <div class="card"><h3>Fixes when a word ends</h3><p>After space, Return, Tab or punctuation, the finished word is checked. Only confident fixes are made.</p></div>
+      <div class="card"><h3>Instant undo</h3><p>Delete right after a fix restores what you typed.</p></div>
+      <div class="card"><h3>Pause anytime</h3><p>One switch in the menu bar, or Control-Option-K from anywhere.</p></div>
+      <div class="card"><h3>Stays out of the way</h3><p>Skips terminals, code editors and apps that already autocorrect. Add or remove apps yourself.</p></div>
+      <div class="card"><h3>Smart skips</h3><p>Leaves ALL CAPS, words with numbers, links, emails, file paths, @mentions, #tags and <code>code</code> alone.</p></div>
+      <div class="card"><h3>Your words</h3><p>A personal dictionary of words to never touch, shared with the Mac's own Learn Spelling list.</p></div>
+    </div>
+  </section>
+
+  <section id="privacy">
+    <h2>What Keymend sees, and what it does with it</h2>
+    <p class="lede" style="font-size:17px">To fix typing, an app has to see your keys. That makes the rules below matter. Each one is enforced by macOS or checked by a test.</p>
+    <div class="grid">
+      <div class="card promise"><h3>No internet, enforced by Apple</h3><p>Keymend runs in Apple's App Sandbox with no network permission. macOS blocks any connection.</p></div>
+      <div class="card promise"><h3>Nothing typed is saved</h3><p>Only the word you are typing is held in memory, and it is cleared when the word ends. No logs, no files, no analytics.</p></div>
+      <div class="card promise"><h3>Passwords are never seen</h3><p>Password fields turn on macOS Secure Input, which stops Keymend from seeing keys. It also checks and does nothing while it is on.</p></div>
+      <div class="card promise"><h3>Only two permissions</h3><p>Input Monitoring to see keys, and permission to type the fix. No screen recording, files or contacts.</p></div>
+      <div class="card promise"><h3>No third-party code</h3><p>Plain Swift and Apple frameworks. No analytics, no auto-updater.</p></div>
+      <div class="card promise"><h3>Open source</h3><p>Read every line, or build it yourself. MIT license.</p></div>
+    </div>
+  </section>
+
+  <section id="install">
+    <h2>Install</h2>
+    <ol class="steps">
+      <li>Download the <code>.dmg</code> from <a href="https://github.com/garoknows/keymend/releases">GitHub Releases</a> and drag Keymend into Applications.</li>
+      <li>Open Keymend. The setup window shows exactly where to click to allow Input Monitoring and typing.</li>
+      <li>Type as usual. The keycap in your menu bar shows how many typos it fixed today.</li>
+    </ol>
+    <p class="small">Preview builds are not yet notarized by Apple. The first time you open one, go to System Settings, Privacy &amp; Security, and click Open Anyway. <a href="https://github.com/garoknows/keymend/blob/main/docs/INSTALL.md">Step-by-step guide with pictures</a>.</p>
+  </section>
+
+  <footer>
+    keymend is free and open source under the MIT license. Not affiliated with Apple.
+    <a href="https://github.com/garoknows/keymend">Source on GitHub</a>.
+  </footer>
+</div>
+
+<script>
+(function () {
+  var words = [
+    { typed: "Thanks", fix: null },
+    { typed: "for", fix: null },
+    { typed: "teh", fix: "the" },
+    { typed: "quick", fix: null },
+    { typed: "reply,", fix: null },
+    { typed: "I'll", fix: null },
+    { typed: "recieve", fix: "receive" },
+    { typed: "it", fix: null },
+    { typed: "tomorow.", fix: "tomorrow." }
+  ];
+  var before = document.getElementById("before");
+  var after = document.getElementById("after");
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  function render(doneWords, current) {
+    var b = "", a = "";
+    doneWords.forEach(function (w) {
+      b += (w.fix ? '<span class="typo">' + esc(w.typed) + "</span>" : esc(w.typed)) + " ";
+      a += (w.fix ? '<span class="fixed">' + esc(w.fix) + "</span>" : esc(w.typed)) + " ";
+    });
+    before.innerHTML = b + esc(current) + '<span class="caret"></span>';
+    after.innerHTML = a + esc(current) + '<span class="caret"></span>';
+  }
+  if (reduce) { render(words, ""); return; }
+  var wi = 0, ci = 0, done = [];
+  function tick() {
+    if (wi >= words.length) { setTimeout(function () { wi = 0; ci = 0; done = []; tick(); }, 2600); return; }
+    var w = words[wi];
+    if (ci < w.typed.length) { ci++; render(done, w.typed.slice(0, ci)); setTimeout(tick, 70 + Math.random() * 70); }
+    else { done.push(w); wi++; ci = 0; render(done, ""); setTimeout(tick, 160); }
+  }
+  tick();
+})();
+</script>
+</body>
+</html>
