@@ -56,6 +56,11 @@ jobs:
           rm "$RUNNER_TEMP/cert.p12"
           sed "s/YOURTEAMID/$TEAM_ID/" Config/Signing.xcconfig.example > Config/Signing.xcconfig
 
+      - name: Compile the app icon (Icon Composer .icon to Assets.car + fallback .icns)
+        run: |
+          scripts/compile-icon.sh
+          if [ -f App/Resources/Generated/AppIcon.icns ]; then cp App/Resources/Generated/AppIcon.icns App/Resources/AppIcon.icns; fi
+
       - name: Build (Release)
         run: |
           brew install xcodegen
@@ -66,6 +71,7 @@ jobs:
           mkdir -p dist
           ditto "build.nosync/dd/Build/Products/Release/$APP_NAME.app" "dist/$APP_NAME.app"
           codesign --verify --deep --strict --verbose=2 "dist/$APP_NAME.app"
+          test -f "dist/$APP_NAME.app/Contents/Resources/Assets.car"
           scripts/check-privacy.sh "dist/$APP_NAME.app"
 
       - name: Write App Store Connect API key

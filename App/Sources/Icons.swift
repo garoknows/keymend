@@ -72,7 +72,8 @@ enum IconGrid {
     }
 }
 
-/// The app icon: an Ink bold K on a Paper rounded square, following Apple's icon grid.
+/// The app icon: a white bold K on a solid Ink rounded square, following Apple's icon grid.
+/// Dark on purpose, so it reads the same in light mode, dark mode and the tinted styles.
 struct KAppIcon: View {
     var size: CGFloat = 64
     var body: some View {
@@ -81,8 +82,8 @@ struct KAppIcon: View {
             let tile = IconGrid.tile(in: side)
             var shadowed = ctx
             shadowed.addFilter(.shadow(color: .black.opacity(0.3), radius: side * 0.01, x: 0, y: side * 0.01))
-            shadowed.fill(tile, with: .color(Brand.paper))
-            ctx.fill(IconGrid.letter(in: side), with: .color(Brand.ink))
+            shadowed.fill(tile, with: .color(Brand.ink))
+            ctx.fill(IconGrid.letter(in: side), with: .color(.white))
         }
         .frame(width: size, height: size)
     }

@@ -36,8 +36,20 @@ func iconSVG() -> String {
     return """
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="keymend">
       <defs><filter id="s" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000" flood-opacity="0.3"/></filter></defs>
-      <path filter="url(#s)" fill="#F7F5F0" d="\(svgPath(IconGrid.tile(in: side)))"/>
-      <path fill="#1C2230" d="\(svgPath(IconGrid.letter(in: side)))"/>
+      <path filter="url(#s)" fill="#1C2230" d="\(svgPath(IconGrid.tile(in: side)))"/>
+      <path fill="#FFFFFF" d="\(svgPath(IconGrid.letter(in: side)))"/>
+    </svg>
+
+    """
+}
+
+/// The foreground layer for the Icon Composer .icon file: only the white K, on the full
+/// 1024 pt icon canvas. macOS supplies the rounded square, background, shadow and the
+/// dark, tinted and clear treatments.
+func iconLayerSVG() -> String {
+    """
+    <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+      <path fill="#FFFFFF" d="\(svgPath(IconGrid.letter(in: 1024)))"/>
     </svg>
 
     """
@@ -110,7 +122,7 @@ struct DocRenderer {
     @MainActor static func main() {
         _ = NSApplication.shared
         let args = CommandLine.arguments
-        guard args.count >= 4 else { print("usage: DocRenderer <iconset dir> <docs images dir> <site icon.svg>"); exit(2) }
+        guard args.count >= 5 else { print("usage: DocRenderer <iconset dir> <docs images dir> <site icon.svg> <.icon layer svg>"); exit(2) }
         let iconset = URL(fileURLWithPath: args[1])
         let docs = URL(fileURLWithPath: args[2])
         try? FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
@@ -123,6 +135,8 @@ struct DocRenderer {
         png(KAppIcon(size: 256), scale: 2, to: docs.appendingPathComponent("icon.png"))
         try! iconSVG().write(toFile: args[3], atomically: false, encoding: .utf8)
         print("wrote \(URL(fileURLWithPath: args[3]).lastPathComponent)")
+        try! iconLayerSVG().write(toFile: args[4], atomically: false, encoding: .utf8)
+        print("wrote \(URL(fileURLWithPath: args[4]).lastPathComponent)")
 
         let model = AppModel.shared
         png(Backdrop { SetupView(model: model) }, to: docs.appendingPathComponent("setup-window.png"))

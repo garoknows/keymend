@@ -28,6 +28,11 @@ jobs:
       - name: Unit and harness tests (KeymendCore)
         run: swift test --package-path Packages/KeymendCore
 
+      - name: Compile the app icon (Icon Composer .icon to Assets.car + fallback .icns)
+        run: |
+          scripts/compile-icon.sh
+          if [ -f App/Resources/Generated/AppIcon.icns ]; then cp App/Resources/Generated/AppIcon.icns App/Resources/AppIcon.icns; fi
+
       - name: Generate the Xcode project from project.yml
         run: |
           brew install xcodegen
@@ -38,6 +43,13 @@ jobs:
           xcodebuild -project Keymend.xcodeproj -scheme Keymend \
             -configuration Release -destination "generic/platform=macOS" \
             -derivedDataPath build.nosync/dd build
+
+      - name: Check the built app carries the icon variants
+        run: |
+          R=build.nosync/dd/Build/Products/Release/Keymend.app/Contents/Resources
+          ls -la "$R"
+          test -f "$R/Assets.car" && test -f "$R/AppIcon.icns"
+          xcrun assetutil --info "$R/Assets.car" | grep '"Appearance"' | sort | uniq -c
 
       - name: Privacy checks (sandbox on, no network, no file writes, no third-party code)
         run: scripts/check-privacy.sh build.nosync/dd/Build/Products/Release/Keymend.app

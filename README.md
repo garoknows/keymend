@@ -25,7 +25,7 @@ Return and Tab end a word without fixing it, on purpose: in chat apps Return sen
 
 ## Install
 
-1. Download `Keymend-1.0.1.dmg` from [Releases](https://github.com/garoknows/keymend/releases), open it and drag **Keymend** into Applications.
+1. Download `Keymend-1.0.2.dmg` from [Releases](https://github.com/garoknows/keymend/releases), open it and drag **Keymend** into Applications.
 2. Open Keymend. It's signed with a Developer ID and notarized by Apple, so it opens normally. ([Step-by-step guide](docs/INSTALL.md))
 3. Keymend opens a setup window that shows exactly where to click for its two permissions.
 
