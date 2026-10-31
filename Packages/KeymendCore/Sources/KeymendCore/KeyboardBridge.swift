@@ -151,8 +151,10 @@ public final class KeyEventTap: @unchecked Sendable {
             eventsOfInterest: mask, callback: keymendTapCallback, userInfo: refcon
         ) else { return false }
         tap = port
+        nonisolated(unsafe) let tapPort = port
         let ready = DispatchSemaphore(value: 0)
         let t = Thread { [weak self] in
+            let port = tapPort
             guard let self, let source = CFMachPortCreateRunLoopSource(nil, port, 0) else { ready.signal(); return }
             self.runLoop = CFRunLoopGetCurrent()
             CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)

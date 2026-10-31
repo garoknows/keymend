@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Unit and harness tests (KeymendCore)
+        run: swift test --package-path Packages/KeymendCore
+
+      - name: Generate the Xcode project from project.yml
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build app (Release, ad hoc signed)
+        run: |
+          xcodebuild -project Keymend.xcodeproj -scheme Keymend \
+            -configuration Release -destination "generic/platform=macOS" \
+            -derivedDataPath build.nosync/dd build
+
+      - name: Privacy checks (sandbox on, no network, no file writes, no third-party code)
+        run: scripts/check-privacy.sh build.nosync/dd/Build/Products/Release/Keymend.app
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

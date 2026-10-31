@@ -1,0 +1,44 @@
+# Installing Keymend
+
+Keymend needs macOS 14 Sonoma or later.
+
+## 1. Download and copy
+
+1. Download the latest `.dmg` from [GitHub Releases](https://github.com/garoknows/keymend/releases).
+2. Open it and drag **Keymend** onto the **Applications** folder.
+
+## 2. Open it the first time
+
+Preview builds are signed but not yet notarized by Apple, so macOS asks you to confirm once:
+
+1. Open **Applications** and double-click **Keymend**. macOS says it can't verify the app. Click **Done**.
+2. Open **System Settings → Privacy & Security** and scroll down to the **Security** section.
+3. Next to "Keymend was blocked to protect your Mac", click **Open Anyway**, then confirm with your password or Touch ID.
+
+You only do this once. Notarized releases will open normally.
+
+## 3. Allow the two permissions
+
+Keymend opens its setup window. Each step turns green by itself when it's done.
+
+**Step 1: Input Monitoring.** Click **Open Input Monitoring**, then turn on the switch next to Keymend.
+
+![System Settings, Privacy & Security, Input Monitoring: (1) Privacy & Security in the sidebar, (2) Input Monitoring, (3) the switch next to Keymend](images/step1-input-monitoring.png)
+
+**Step 2: Typing fixes.** Click **Open Accessibility**, then turn on the switch next to Keymend.
+
+![System Settings, Privacy & Security, Accessibility: (1) Privacy & Security in the sidebar, (2) Accessibility, (3) the switch next to Keymend](images/step2-accessibility.png)
+
+If a switch is on but the step stays grey, quit Keymend from its menu and open it again. macOS sometimes applies Input Monitoring only after a restart of the app.
+
+## 4. Use it
+
+Look for the keycap in your menu bar. Type as usual. The menu shows how many typos Keymend fixed today, a switch to pause it (or press Control-Option-K), and "Skip in [app]" for the app you're in.
+
+Open **Settings** to turn on launch at login, edit the list of apps Keymend stays off in, and add words it should never change.
+
+## Uninstall
+
+1. Choose **Quit Keymend** from its menu.
+2. Drag **Keymend** from Applications to the Trash.
+3. Optional: remove its settings folder, `~/Library/Containers/io.github.garoknows.keymend`, and turn off its entries in System Settings → Privacy & Security.
