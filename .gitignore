@@ -1,0 +1,28 @@
+# Private planning: never commit
+garoresources.nosync/
+kickoff/
+
+# Claude Code settings (contain personal paths)
+.claude/
+
+# Build output
+build.nosync
+build/
+DerivedData/
+.build/
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+
+# macOS
+.DS_Store
+
+# Secrets and signing
+.env
+.env.*
+*.p12
+*.p8
+*.cer
+*.mobileprovision
+*.provisionprofile
+Config/Signing.xcconfig
