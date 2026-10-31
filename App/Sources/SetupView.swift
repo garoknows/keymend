@@ -31,7 +31,7 @@ struct SetupView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 12) {
-                BrandKeycap(size: 44)
+                KAppIcon(size: 56)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("keymend").font(.system(size: 24, weight: .semibold, design: .rounded))
                     Text("Two permissions, then it just works.").foregroundStyle(.secondary)
@@ -176,7 +176,7 @@ struct AnnotatedSettings: View {
     private func appRow(_ name: String, on: Bool, keymend: Bool = false) -> some View {
         HStack(spacing: 5) {
             if keymend {
-                BrandKeycap(size: 12)
+                KAppIcon(size: 14)
             } else {
                 RoundedRectangle(cornerRadius: 2).fill(Color.secondary.opacity(0.4)).frame(width: 12, height: 12)
             }

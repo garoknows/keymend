@@ -14,20 +14,33 @@ func png(_ view: some View, scale: CGFloat = 2, to url: URL) {
     print("wrote \(url.lastPathComponent) \(cg.width)x\(cg.height)")
 }
 
-/// The app icon: the brand keycap on a paper tile.
-struct AppIconView: View {
-    var size: CGFloat
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
-                .fill(LinearGradient(colors: [Color(red: 0.99, green: 0.98, blue: 0.96), Brand.paper], startPoint: .top, endPoint: .bottom))
-                .overlay(RoundedRectangle(cornerRadius: size * 0.225, style: .continuous).strokeBorder(Brand.ink.opacity(0.08), lineWidth: size * 0.01))
-                .padding(size * 0.09)
-                .shadow(color: .black.opacity(0.18), radius: size * 0.02, y: size * 0.01)
-            BrandKeycap(size: size * 0.62)
+/// SVG path data for a SwiftUI path.
+func svgPath(_ path: Path) -> String {
+    var d = ""
+    func f(_ v: CGFloat) -> String { String(format: "%.1f", v) }
+    path.forEach { e in
+        switch e {
+        case .move(let p): d += "M\(f(p.x)) \(f(p.y))"
+        case .line(let p): d += "L\(f(p.x)) \(f(p.y))"
+        case .quadCurve(let p, let c): d += "Q\(f(c.x)) \(f(c.y)) \(f(p.x)) \(f(p.y))"
+        case .curve(let p, let c1, let c2): d += "C\(f(c1.x)) \(f(c1.y)) \(f(c2.x)) \(f(c2.y)) \(f(p.x)) \(f(p.y))"
+        case .closeSubpath: d += "Z"
         }
-        .frame(width: size, height: size)
     }
+    return d
+}
+
+/// The website icon: the same tile and K as the app icon, on the same 1024 grid.
+func iconSVG() -> String {
+    let side: CGFloat = 1024
+    return """
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="keymend">
+      <defs><filter id="s" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000" flood-opacity="0.3"/></filter></defs>
+      <path filter="url(#s)" fill="#F7F5F0" d="\(svgPath(IconGrid.tile(in: side)))"/>
+      <path fill="#1C2230" d="\(svgPath(IconGrid.letter(in: side)))"/>
+    </svg>
+
+    """
 }
 
 // Settings tabs use AppKit-backed Form and List, which ImageRenderer cannot draw;
@@ -97,17 +110,19 @@ struct DocRenderer {
     @MainActor static func main() {
         _ = NSApplication.shared
         let args = CommandLine.arguments
-        guard args.count >= 3 else { print("usage: DocRenderer <iconset dir> <docs images dir>"); exit(2) }
+        guard args.count >= 4 else { print("usage: DocRenderer <iconset dir> <docs images dir> <site icon.svg>"); exit(2) }
         let iconset = URL(fileURLWithPath: args[1])
         let docs = URL(fileURLWithPath: args[2])
         try? FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: docs, withIntermediateDirectories: true)
 
         for base in [16, 32, 128, 256, 512] {
-            png(AppIconView(size: CGFloat(base)), scale: 1, to: iconset.appendingPathComponent("icon_\(base)x\(base).png"))
-            png(AppIconView(size: CGFloat(base)), scale: 2, to: iconset.appendingPathComponent("icon_\(base)x\(base)@2x.png"))
+            png(KAppIcon(size: CGFloat(base)), scale: 1, to: iconset.appendingPathComponent("icon_\(base)x\(base).png"))
+            png(KAppIcon(size: CGFloat(base)), scale: 2, to: iconset.appendingPathComponent("icon_\(base)x\(base)@2x.png"))
         }
-        png(AppIconView(size: 256), scale: 2, to: docs.appendingPathComponent("icon.png"))
+        png(KAppIcon(size: 256), scale: 2, to: docs.appendingPathComponent("icon.png"))
+        try! iconSVG().write(toFile: args[3], atomically: false, encoding: .utf8)
+        print("wrote \(URL(fileURLWithPath: args[3]).lastPathComponent)")
 
         let model = AppModel.shared
         png(Backdrop { SetupView(model: model) }, to: docs.appendingPathComponent("setup-window.png"))

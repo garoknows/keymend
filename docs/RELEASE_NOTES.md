@@ -10,12 +10,15 @@ Keymend fixes spelling as you type, in every Mac app, using Apple's own on-devic
 - Today's fix count (numbers only). Launch at login.
 - Runs in the App Sandbox with no network permission.
 
+### New in 1.0.1
+- New app icon: a bold K on a paper tile, matching the menu bar icon.
+
 ### New in 1.0
 - Menu bar icon is now a bold K.
 - Signed with a Developer ID and notarized by Apple.
 
 ### Install
-1. Download `Keymend-1.0.0.dmg` below, open it and drag **Keymend** into Applications.
+1. Download `Keymend-1.0.1.dmg` below, open it and drag **Keymend** into Applications.
 2. Open Keymend. It's notarized, so it opens normally.
 3. Follow the setup window to allow Input Monitoring and typing fixes.
 

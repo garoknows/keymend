@@ -8,7 +8,7 @@
 #        SIGN_IDENTITY     (default "-" = ad hoc; e.g. "Developer ID Application")
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${1:-1.0.0}"
+VERSION="${1:-1.0.1}"
 B="${KEYMEND_BUILD_DIR:-$HOME/Library/Caches/Keymend-build}/direct-app"
 IDENTITY="${SIGN_IDENTITY:--}"
 APP="$B/Keymend.app"
@@ -31,7 +31,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 lipo -create "$B/arm64/Keymend" "$B/x86_64/Keymend" -output "$APP/Contents/MacOS/Keymend"
 cp "$ROOT/App/Info.plist" "$APP/Contents/Info.plist"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
-plutil -replace CFBundleVersion -string "${BUILD_NUMBER:-2}" "$APP/Contents/Info.plist"
+plutil -replace CFBundleVersion -string "${BUILD_NUMBER:-3}" "$APP/Contents/Info.plist"
 [ -f "$ROOT/App/Resources/AppIcon.icns" ] && cp "$ROOT/App/Resources/AppIcon.icns" "$APP/Contents/Resources/"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 

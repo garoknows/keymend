@@ -13,7 +13,7 @@ SOURCES=$(ls "$ROOT"/App/Sources/*.swift | grep -v KeymendApp.swift)
 swiftc "${COMMON[@]}" -parse-as-library -I "$B" -L "$B" -lKeymendCore -module-name DocRenderer \
   $SOURCES "$ROOT/tools/DocRenderer/main.swift" -o "$B/DocRenderer"
 rm -rf "$B/AppIcon.iconset"
-"$B/DocRenderer" "$B/AppIcon.iconset" "$ROOT/docs/images"
+"$B/DocRenderer" "$B/AppIcon.iconset" "$ROOT/docs/images" "$ROOT/site/icon.svg"
 iconutil -c icns "$B/AppIcon.iconset" -o "$ROOT/App/Resources/AppIcon.icns" 2>/dev/null \
   || python3 "$ROOT/tools/make-icns.py" "$B/AppIcon.iconset" "$ROOT/App/Resources/AppIcon.icns"
 echo "Wrote App/Resources/AppIcon.icns"
