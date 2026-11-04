@@ -36,8 +36,9 @@ final class SimulatedTextField: KeyOutput, @unchecked Sendable {
         }
     }
 
-    /// Keymend posts a whole fix in well under a millisecond, so the field receives it as
-    /// one unit; a user key can only land before or after it.
+    /// This field receives a whole fix as one unit, so a user key can only land before or after
+    /// it. That is a simplification: real events can interleave, so these tests do NOT prove a
+    /// key can't land in the middle of a fix, only that the stale-fix check works.
     func perform(_ plan: KeyPlan) {
         let downs = KeyEventFactory.events(for: plan, source: nil).filter { $0.type == .keyDown }
         lock.withLock {
@@ -264,7 +265,8 @@ struct BridgeHarnessTests {
     @Test(arguments: 1...5)
     func veryFastTypingNeverLosesOrDoublesCharacters(_ run: Int) {
         // 30 ms between keys is about 400 words per minute, far beyond human speed. Some fixes
-        // may be dropped as stale, but every word must be either as typed or fixed, never garbled.
+        // may be dropped as stale, but every word must be either as typed or fixed. The field
+        // applies each fix as one unit (see SimulatedTextField), so this can't catch interleaving.
         let h = Harness()
         h.type(Self.paragraph, delay: 0.03, settle: false)
         Thread.sleep(forTimeInterval: 0.2)

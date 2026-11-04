@@ -44,8 +44,9 @@ public final class SystemKeyOutput: KeyOutput, @unchecked Sendable {
     private let source = CGEventSource(stateID: .privateState)
     private let gap: useconds_t
 
-    /// `gapMicroseconds` pauses between events. Default 0: the whole fix is posted in well
-    /// under a millisecond, so a fast typist's next key can't land in the middle of it.
+    /// `gapMicroseconds` pauses between events. Default 0: posting the fix as fast as possible
+    /// keeps the window small in which a fast typist's next key could land in the middle of it.
+    /// That window is not zero, and its real length has not been measured.
     public init(gapMicroseconds: useconds_t = 0) {
         gap = gapMicroseconds
         source?.userData = KeyEventClassifier.ownEventTag

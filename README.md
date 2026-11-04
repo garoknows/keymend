@@ -67,7 +67,7 @@ To fix typing, an app has to see your keys. That makes Keymend technically a key
 
 ## How it works
 
-Keymend listens to key presses with a listen-only event tap. When a word ends, it asks `NSSpellChecker` (the same on-device engine as Mac autocorrect) for a correction, giving up after 50 ms. If there is one, it presses Delete once per character of the word and the punctuation after it, then types the correction. If you've already pressed another key by then, it does nothing, so fast typing never loses or doubles characters.
+Keymend listens to key presses with a listen-only event tap. When a word ends, it asks `NSSpellChecker` (the same on-device engine as Mac autocorrect) for a correction, giving up after 50 ms. If there is one, it presses Delete once per character of the word and the punctuation after it, then types the correction. If you've already pressed another key by then, it drops the fix. That covers most fast typing, but a key pressed in the instant the fix is being typed can still land in the middle of it, so a word can occasionally come out garbled. If you see that, please [open an issue](https://github.com/garoknows/keymend/issues).
 
 If Keymend can't be sure where the cursor is (after a click, an arrow key, a shortcut or switching apps), it leaves the next word alone.
 
