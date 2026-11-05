@@ -27,7 +27,9 @@ Return and Tab end a word without fixing it, on purpose: in chat apps Return sen
 
 ## Install
 
-1. Download `Keymend-1.0.2.dmg` from [Releases](https://github.com/garoknows/keymend/releases), open it and drag **Keymend** into Applications.
+Careful Mode and the Learning Dictionary are in the 1.1.0 pre-release, which hasn't had daily use yet. Keymend 1.0.2 is still the main download and doesn't have them.
+
+1. Download `Keymend-1.0.2.dmg` from [Releases](https://github.com/garoknows/keymend/releases), or `Keymend-1.1.0.dmg` to try the pre-release, open it and drag **Keymend** into Applications.
 2. Open Keymend. It's signed with a Developer ID and notarized by Apple, so it opens normally. ([Step-by-step guide](docs/INSTALL.md))
 3. Keymend opens a setup window that shows exactly where to click for its two permissions.
 

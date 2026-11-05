@@ -372,6 +372,13 @@ struct LearningVaultTests {
         #expect(try Data(contentsOf: url) == before)
     }
 
+    @Test func aFileThatCannotBeReadIsAnErrorNotAnEmptyStore() throws {
+        // A folder at the file's path exists but can't be read as data.
+        let url = Self.tempURL(); defer { try? FileManager.default.removeItem(at: url) }
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        #expect(throws: LearningVaultError.cannotDecrypt) { try LearningVault(fileURL: url, keys: MemoryKey()).load() }
+    }
+
     @Test func aCorruptFileIsAnError() throws {
         let url = Self.tempURL(); defer { try? FileManager.default.removeItem(at: url) }
         let keys = MemoryKey()

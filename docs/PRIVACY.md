@@ -2,6 +2,8 @@
 
 Keymend sees every key you type. That is what lets it fix typos, and it is also exactly what a keylogger does. This page explains what Keymend sees, what it does with it, and how you can check.
 
+This page describes the 1.1.0 pre-release. Keymend 1.0.2, still the main download, has no Careful Mode or Learning Dictionary.
+
 ## What Keymend sees
 
 - The keys you press while a normal text field is active, one at a time.

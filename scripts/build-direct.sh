@@ -8,7 +8,7 @@
 #        SIGN_IDENTITY     (default "-" = ad hoc; e.g. "Developer ID Application")
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${1:-1.0.2}"
+VERSION="${1:-1.1.0}"
 B="${KEYMEND_BUILD_DIR:-$HOME/Library/Caches/Keymend-build}/direct-app"
 IDENTITY="${SIGN_IDENTITY:--}"
 APP="$B/Keymend.app"
