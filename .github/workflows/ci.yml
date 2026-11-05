@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # the secret scan needs the commits a pull request adds
 
       - name: Show toolchain
         run: |
