@@ -2,9 +2,10 @@ import AppKit
 import KeymendCore
 import SwiftUI
 
-/// Settings: General, Apps, Dictionary.
+/// Settings: General, Apps, Dictionary, Learning.
 struct SettingsView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject private var learning = AppModel.shared.learning
 
     var body: some View {
         TabView {
@@ -14,8 +15,13 @@ struct SettingsView: View {
                 .tabItem { Label("Apps", systemImage: "square.grid.2x2") }
             DictionaryTab(model: model)
                 .tabItem { Label("Dictionary", systemImage: "character.book.closed") }
+            LearningTab(learning: learning)
+                .tabItem {
+                    let waiting = learning.store.proposedCount
+                    Label(waiting > 0 ? "Learning (\(waiting))" : "Learning", systemImage: "brain")
+                }
         }
-        .frame(width: 480, height: 400)
+        .frame(width: 600, height: 520)
     }
 }
 
@@ -46,7 +52,7 @@ struct GeneralTab: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
             Section {
-                Text("Keymend never connects to the internet and never saves what you type. It only counts fixes.")
+                Text("Keymend never connects to the internet. It doesn't save what you type. If you turn on Learning, it keeps single words and counts, encrypted, on this Mac.")
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
@@ -167,7 +173,7 @@ struct DictionaryTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Words Keymend never changes. They're also added to your Mac's own spelling dictionary.")
+            Text("Words Keymend never changes. They're also added to your Mac's own spelling dictionary. Words it learns by itself aren't: those stay in the Learning tab.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {

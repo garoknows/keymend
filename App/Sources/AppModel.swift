@@ -43,6 +43,7 @@ final class AppModel: ObservableObject {
     private let output = SystemKeyOutput()
     private let bridge: KeyboardBridge
     private let tap: KeyEventTap
+    let learning: LearningModel
     private var timer: Timer?
     private var hotKeyRef: EventHotKeyRef?
     private var observers: [NSObjectProtocol] = []
@@ -69,9 +70,11 @@ final class AppModel: ObservableObject {
         var hooks = KeyboardBridge.Hooks()
         hooks.didFix = { Task { @MainActor in AppModel.shared.recordFix() } }
         hooks.didUndo = { Task { @MainActor in AppModel.shared.recordUndo() } }
+        hooks.didLearn = { event, verdict in Task { @MainActor in AppModel.shared.learning.record(event, verdict: verdict) } }
         output.setLayout(KeyLayoutMap.current())
         bridge = KeyboardBridge(output: output, checker: TimeLimitedSpellChecker(checker), hooks: hooks)
         tap = KeyEventTap(bridge: bridge)
+        learning = LearningModel(bridge: bridge, defaults: defaults)
         bridge.neverCorrect = neverCorrect
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
@@ -79,6 +82,7 @@ final class AppModel: ObservableObject {
     /// Called once at launch.
     func start() {
         observeSystem()
+        learning.start()
         registerHotKey()
         updateFrontmostApp(NSWorkspace.shared.frontmostApplication)
         refreshPermissions()
@@ -251,6 +255,9 @@ final class AppModel: ObservableObject {
         bridge.isEnabled = isEnabled
         bridge.isAppSkipped = currentAppMode == .skip
         bridge.isAppCareful = currentAppMode == .careful
+        // Nothing typed in Keymend's own windows is learned, including its search box.
+        let keymendIsInFront = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Bundle.main.bundleIdentifier
+        learning.frontmostAppChanged(keymendIsInFront ? nil : currentApp?.bundleIdentifier)
     }
 
     private func updateFrontmostApp(_ app: NSRunningApplication?) {

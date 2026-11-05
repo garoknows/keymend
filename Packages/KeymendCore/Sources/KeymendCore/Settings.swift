@@ -70,6 +70,18 @@ public enum DefaultSkipList {
     ]
 }
 
+/// Apps Keymend never learns from. The user can edit the list. No banking apps ship here: there
+/// is no universal list, so the user adds their own.
+public enum DefaultLearningExclusions {
+    public static let bundleIDs: [String] = [
+        "com.1password.1password",
+        "com.agilebits.onepassword7",
+        "com.bitwarden.desktop",
+        "com.apple.keychainaccess",
+        "com.apple.Passwords",
+    ]
+}
+
 /// Today's number of fixes. Counts only; the words themselves are never stored.
 public struct DailyFixCount: Codable, Equatable, Sendable {
     public var day: String

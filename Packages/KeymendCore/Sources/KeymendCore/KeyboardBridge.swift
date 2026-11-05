@@ -14,14 +14,17 @@ public final class KeyboardBridge: @unchecked Sendable {
         public var didFix: @Sendable () -> Void = {}
         /// Called on the engine queue after a fix was undone.
         public var didUndo: @Sendable () -> Void = {}
+        /// Called on the engine queue when learning notices a word, with the spell checker's
+        /// answer. Only while learning is capturing.
+        public var didLearn: @Sendable (LearningEvent, SpellVerdict) -> Void = { _, _ in }
         /// Test hook: runs right before a plan is typed.
         public var beforePerform: @Sendable () -> Void = {}
         public init() {}
     }
 
-    private let queue = DispatchQueue(label: "keymend.engine", qos: .userInteractive)
+    fileprivate let queue = DispatchQueue(label: "keymend.engine", qos: .userInteractive)
     private let output: KeyOutput
-    private let checker: SpellChecking
+    fileprivate let checker: SpellChecking
     private let lock = NSLock()
 
     // Guarded by `lock`.
@@ -30,13 +33,18 @@ public final class KeyboardBridge: @unchecked Sendable {
     private var _appSkipped = false
     private var _appCareful = false
     private var _neverCorrect = NeverCorrectList()
+    private var _learningCaptures = false
+    private var _learnedRules = LearnedRules()
 
     // Only touched on `queue`.
     private var engine = WordEngine()
+    fileprivate var watcher = LearningWatcher()
 
     public var hooks: Hooks
     /// Returns true while macOS Secure Input is on (a password field has focus).
     public var secureInputCheck: @Sendable () -> Bool = { IsSecureEventInputEnabled() }
+    /// The clock learning uses. For tests.
+    public var now: @Sendable () -> Date = { Date() }
 
     public init(output: KeyOutput, checker: SpellChecking, hooks: Hooks = Hooks()) {
         self.output = output
@@ -68,10 +76,29 @@ public final class KeyboardBridge: @unchecked Sendable {
         set { lock.withLock { _neverCorrect = newValue } }
     }
 
+    /// True while learning may notice words: it's on, not paused, and this app isn't excluded.
+    /// Careful apps never learn, whatever this says.
+    public var learningCaptures: Bool {
+        get { lock.withLock { _learningCaptures } }
+        set {
+            lock.withLock { _learningCaptures = newValue }
+            if !newValue { queue.async { self.watcher.reset() } }
+        }
+    }
+
+    /// What was learned. Not used in Careful apps.
+    public var learnedRules: LearnedRules {
+        get { lock.withLock { _learnedRules } }
+        set { lock.withLock { _learnedRules = newValue } }
+    }
+
     /// Forget the current word (app switch, wake from sleep, layout change).
     public func reset() {
         lock.withLock { latestSequence &+= 1 }
-        queue.async { self.engine.reset() }
+        queue.async {
+            self.engine.reset()
+            self.watcher.reset()
+        }
     }
 
     // MARK: Events
@@ -104,11 +131,17 @@ public final class KeyboardBridge: @unchecked Sendable {
     private func process(_ input: KeyInput, sequence: UInt64, careful: Bool) {
         let checker = self.checker
         let never = neverCorrect
+        let (capturing, learned) = lock.withLock { (_learningCaptures && !careful, careful ? LearnedRules() : _learnedRules) }
         engine.isCareful = careful
         let action = engine.handle(input, verdict: { word in
             if never.contains(word) || checker.hasLearnedWord(word) { return .correct }
-            return checker.verdict(for: word)
+            return learned.applied(to: word) { checker.verdict(for: word) }
         })
+        if capturing {
+            watch(input, action: action, never: never)
+        } else {
+            watcher.reset()
+        }
         guard let plan = action.plan else { return }
         // Careful mode won't risk a wrong letter: every character must have a real key.
         if careful, !output.canType(plan.text) { return }
@@ -120,11 +153,49 @@ public final class KeyboardBridge: @unchecked Sendable {
         switch action {
         case .correct(let c):
             engine.didApply(c)
+            if capturing { watcher.didFix() }
             hooks.didFix()
         case .undo:
             hooks.didUndo()
         case .none:
             break
+        }
+    }
+}
+
+extension KeyboardBridge {
+    /// Runs on the engine queue. Asks the spell checker about a word once, here, so only words
+    /// that could be kept ever leave this queue.
+    private func watch(_ input: KeyInput, action: EngineAction, never: NeverCorrectList) {
+        let events: [LearningEvent]
+        if case .undo(let fix) = action {
+            events = watcher.didUndo(fix)
+        } else {
+            events = watcher.handle(input, now: now())
+        }
+        deliver(events, never: never)
+        guard watcher.isHoldingFinishedWord else { return }
+        // Let go of the finished word when its window ends, even if the user stops typing.
+        queue.asyncAfter(deadline: .now() + LearningWatcher.window + 0.1) { [weak self] in
+            guard let self else { return }
+            self.deliver(self.watcher.expire(now: self.now()), never: self.neverCorrect)
+        }
+    }
+
+    private func deliver(_ events: [LearningEvent], never: NeverCorrectList) {
+        for event in events {
+            let word: String
+            switch event {
+            case .corrected(let typed, _), .undone(let typed, _): word = typed
+            case .keptWord(let kept): word = kept
+            }
+            if never.contains(word) { continue }
+            let verdict = checker.verdict(for: word)
+            switch event {
+            case .keptWord: if verdict != .unknown { continue }
+            default: if verdict == .correct { continue }
+            }
+            hooks.didLearn(event, verdict)
         }
     }
 }

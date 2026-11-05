@@ -4,6 +4,7 @@
 - Typed letters now use their real keys, so programs that read the physical key should get the right letter. Not yet tested in those programs.
 - If you've changed your skip list before, Ghostty stays on it until you choose "Don't Skip in Ghostty".
 - Permissions are checked every 30 seconds once granted, instead of every 2.
+- **Learning Dictionary, off until you turn it on.** Learns single words you often fix or undo, encrypted on your Mac, and you review everything. It adds one file and one permission limited to files you pick. See the README for exactly what it stores.
 
 Keymend fixes spelling as you type, in every Mac app, using Apple's own on-device spell checker. It never connects to the internet.
 
