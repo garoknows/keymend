@@ -20,4 +20,4 @@ SWIFT
 swiftc "${COMMON[@]}" -parse-as-library -I "$B" -L "$B" -lKeymendCore -module-name KeymendCoreTests \
   -Xlinker -rpath -Xlinker "$PLAT/Library/Frameworks" -Xlinker -rpath -Xlinker "$PLAT/usr/lib" \
   "$HERE"/Tests/KeymendCoreTests/*.swift "$B/runner.swift" -o "$B/keymend-core-tests"
-"$B/keymend-core-tests" "$@"
+KEYMEND_TEST_DIR="$B" "$B/keymend-core-tests" "$@"

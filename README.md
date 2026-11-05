@@ -20,7 +20,8 @@ Keymend is a small menu bar app that fixes them as you type, in every app. It us
 - **Careful Mode for terminals.** On by default in Ghostty only. It fixes lines that look like plain language and leaves anything that looks like a command or code alone. It can't be perfect: read [Terminals and Careful Mode](#terminals-and-careful-mode).
 - **Smart skips.** Never touches ALL CAPS, words with numbers, links, email addresses, file paths, @mentions, #tags, or anything inside `backticks`.
 - **Your words.** A personal dictionary of words to never change. It starts empty and is shared with the Mac's own "Learn Spelling" list.
-- **Today's count.** The menu shows how many typos it fixed today. It counts; it never keeps the words.
+- **Today's count.** The menu shows how many typos it fixed today. It only counts; the count doesn't keep the words.
+- **Learning Dictionary (optional, off until you turn it on).** Learns single words you often fix or undo. You review everything in Settings → Learning. [What it stores](#learning-dictionary).
 
 Return and Tab end a word without fixing it, on purpose: in chat apps Return sends the message immediately, and a fix typed after that would land in the empty box.
 
@@ -51,14 +52,14 @@ Keymend asks for exactly two, and nothing else:
 | Input Monitoring | Privacy & Security → Input Monitoring | To see the word you're typing |
 | Post keyboard events | Privacy & Security → Accessibility | To type the corrected word |
 
-No screen recording, files, contacts, location or network.
+No screen recording, contacts, location or network. Files are limited to what you pick yourself in a save or open dialog, to export or import learned words.
 
 ## Privacy, in plain English
 
 To fix typing, an app has to see your keys. That makes Keymend technically a keylogger, so these rules matter. Each one is enforced by macOS or checked automatically on every change ([details](docs/PRIVACY.md)):
 
 1. **No internet, enforced by Apple.** Keymend runs in the App Sandbox with no network permission. macOS blocks any connection, even from a future bug.
-2. **Nothing typed is saved.** Only the word you're typing right now is held in memory, and it's cleared when the word ends, when you switch apps, or click. No logs, files, analytics or crash reports.
+2. **Nothing you type is saved, unless you turn on Learning.** Only the word you're typing right now is held in memory, and it's cleared when the word ends, when you switch apps, or click. No logs, analytics or crash reports. With Learning on, single words and counts are kept, encrypted, on this Mac ([exactly what](#learning-dictionary)).
 3. **Password fields stop Keymend seeing keys.** They turn on macOS Secure Input, which stops Keymend from receiving keys. Keymend also checks for it and does nothing while it's on. **The exception is terminal password prompts.** They only use Secure Input if the terminal turns it on, so otherwise the keys reach Keymend's memory ([details](#passwords-in-terminals)).
 4. **Only two permissions**, listed above.
 5. **No third-party code.** Plain Swift and Apple frameworks. No analytics, no auto-updater.
@@ -119,6 +120,43 @@ macos-auto-secure-input = true
 ```
 
 Terminal, iTerm and other terminals stay skipped unless you change that, and Keymend warns you first. Turning on Secure Keyboard Entry in a terminal protects its password prompts, and it also stops Keymend working in that terminal.
+
+## Learning Dictionary
+
+**Off until you turn it on,** in Settings → Learning.
+
+| It notices | When | What happens |
+| --- | --- | --- |
+| A correction: you delete back and retype a flagged word, with at most 2 letters different | Within 5 seconds, 3 times on at least 2 different days | Proposed as a rule. **Nothing changes until you approve it** |
+| An undo: you press Delete right after a fix | 2 times | That fix stops, automatically |
+| A word the spell checker flags, has no confident fix for, and you don't go back to | 5 times on at least 3 different days | Treated as known, automatically |
+
+Anything that makes Keymend do less applies by itself. Anything that makes it type something new needs your approval. In Settings → Learning you can review, approve, edit, reject, delete, search, pause, clear everything, and export or import.
+
+**Stored for each item, and nothing else:** the kind, the typed word, the correction, a count, the number of days it was seen, the last day it was seen (no time), and its status.
+
+**Never stored:** sentences, neighbouring words, the app, window, document or website, the time of day, or anything from a password field or an excluded app.
+
+**It doesn't learn from:**
+
+- Anything that looks like code, a path, an email or a handle. You can add emails and handles by hand.
+- Words in quotes or backticks.
+- Terminals or other Careful Mode apps. What it learned isn't used there either.
+- Apps on the exclusion list. The default lists password managers only. **Add your banking apps yourself in Settings → Learning → Excluded Apps.**
+
+**Where it lives:** one file in Keymend's sandbox container, encrypted with AES-256-GCM. The key is in your login Keychain. Words not approved or made active are forgotten after 90 days unseen. Learned words stay out of the Mac's shared Learn Spelling list. An export is a separate file encrypted with a passphrase you choose.
+
+**What changes when it's on:**
+
+- To catch a correction, Keymend keeps the last finished word in memory for about 5 seconds. With Learning off, it's cleared the moment the word ends.
+- Keymend writes that one encrypted file.
+
+**What it can't do:**
+
+- Encryption protects the file if it's copied, or read from a backup or a stolen disk. It doesn't protect against malware running as you while your Mac is unlocked, and the list is in memory while Keymend runs.
+- Keymend can't tell which website you're on, so a bank's website isn't excluded. Only its password fields are, through Secure Input.
+- A letters-only password typed into an ordinary field that doesn't use Secure Input could be recorded, if you mistype and retype it or type it often enough. It would be encrypted and visible in your review list, where you can delete it.
+- The list will include people's and clients' names, as single words. That's why it's encrypted and reviewable.
 
 ## How it works
 

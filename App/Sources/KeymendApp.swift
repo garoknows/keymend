@@ -25,6 +25,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated { AppModel.shared.start() }
     }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { AppModel.shared.learning.saveNow() }
+    }
 }
 
 /// The menu: On/Paused switch, today's count, skip the current app, Settings, Quit.

@@ -2,9 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- App Sandbox on. No network, file, camera, contacts or other entitlements:
+	<!-- App Sandbox on. No network, camera, contacts or other entitlements:
 	     macOS blocks every connection attempt. Keep this file this short. -->
 	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Only files the user picks in a save or open dialog, for exporting and importing
+	     learned words. Keymend can't reach any other file. -->
+	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
 </dict>
 </plist>
