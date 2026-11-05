@@ -80,7 +80,13 @@ public struct LearningVault: Sendable {
     /// Reads the store. No file means an empty store. A file that can't be opened is an error,
     /// so a Keychain problem can never lead to overwriting the user's words.
     public func load() throws -> LearningStore {
-        guard let sealed = try? Data(contentsOf: fileURL) else { return LearningStore() }
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return LearningStore() }
+        let sealed: Data
+        do {
+            sealed = try Data(contentsOf: fileURL)
+        } catch {
+            throw LearningVaultError.cannotDecrypt
+        }
         guard let key = try keys.loadKey() else { throw LearningVaultError.cannotDecrypt }
         do {
             let opened = try AES.GCM.open(AES.GCM.SealedBox(combined: sealed), using: key)

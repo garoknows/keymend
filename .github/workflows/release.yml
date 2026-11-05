@@ -132,5 +132,8 @@ jobs:
             echo "Release $GITHUB_REF_NAME already exists; leaving it as published."
             exit 0
           fi
-          gh release create "$GITHUB_REF_NAME" dist/*.dmg dist/SHA256SUMS.txt \
+          # Notes that open with "**Pre-release" publish as a pre-release, never as the latest version.
+          PRERELEASE=""
+          if head -n 1 docs/RELEASE_NOTES.md | grep -q '^\*\*Pre-release'; then PRERELEASE="--prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" dist/*.dmg dist/SHA256SUMS.txt $PRERELEASE \
             --title "Keymend ${{ steps.v.outputs.version }}" --notes-file docs/RELEASE_NOTES.md

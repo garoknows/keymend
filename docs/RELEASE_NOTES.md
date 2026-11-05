@@ -1,4 +1,6 @@
-### Next release (not published yet)
+**Pre-release, for testing.** The new features below haven't had daily use yet. [Keymend 1.0.2](https://github.com/garoknows/keymend/releases/tag/v1.0.2) is still the main download.
+
+### New in 1.1.0
 - **Careful Mode for terminals, on by default in Ghostty only.** It fixes lines that look like plain language and leaves anything that looks like a command or code alone. It can't promise commands are never changed: see "Known gaps" in the README.
 - **Terminal password prompts can reach Keymend's memory** in a terminal where Keymend is on, unless that terminal turns on Secure Input. Ghostty does when it detects a prompt, but not over SSH.
 - Typed letters now use their real keys, so programs that read the physical key should get the right letter. Not yet tested in those programs.
@@ -29,7 +31,7 @@ Keymend fixes spelling as you type, in every Mac app, using Apple's own on-devic
 - Signed with a Developer ID and notarized by Apple.
 
 ### Install
-1. Download `Keymend-1.0.2.dmg` below, open it and drag **Keymend** into Applications.
+1. Download `Keymend-1.1.0.dmg` below, open it and drag **Keymend** into Applications.
 2. Open Keymend. It's notarized, so it opens normally.
 3. Follow the setup window to allow Input Monitoring and typing fixes.
 
