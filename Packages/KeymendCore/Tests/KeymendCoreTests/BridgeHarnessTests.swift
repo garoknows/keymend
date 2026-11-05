@@ -295,6 +295,41 @@ struct BridgeHarnessTests {
         #expect(KeyEventClassifier.classify(RawKeyEvent(kind: .mouseDown)) == .reset)
     }
 
+    @Test func lettersArePostedAsTheirRealKeys() {
+        // The "aaa" bug: every letter used to be posted as key code 0, the physical "A" key.
+        let layout = KeyLayoutMap(strokes: [
+            "t": KeyStroke(code: 17), "T": KeyStroke(code: 17, shift: true),
+            "h": KeyStroke(code: 4), "e": KeyStroke(code: 14), " ": KeyStroke(code: 49),
+        ])
+        let events = KeyEventFactory.events(for: KeyPlan(backspaces: 1, text: "The "), source: nil, layout: layout)
+        let downs = events.filter { $0.type == .keyDown }.map { RawKeyEvent($0, type: .keyDown) }
+        #expect(downs.map(\.keyCode) == [51, 17, 4, 14, 49])
+        #expect(downs.map(\.characters).suffix(4) == ["T", "h", "e", " "])
+        #expect(downs[1].flags.contains(.maskShift))
+        #expect(!downs[2].flags.contains(.maskShift))
+        // The Shift must be released on the key-up as well, with the same key.
+        let ups = events.filter { $0.type == .keyUp }.map { RawKeyEvent($0, type: .keyUp) }
+        #expect(ups.map(\.keyCode) == [51, 17, 4, 14, 49])
+    }
+
+    @Test func aCharacterTheLayoutCannotTypeIsReported() {
+        let layout = KeyLayoutMap(strokes: ["a": KeyStroke(code: 0)])
+        #expect(layout.canType("a"))
+        #expect(!layout.canType("aé"))
+    }
+
+    @MainActor
+    @Test func readsTheRealKeyboardLayout() throws {
+        // Whatever layout this Mac uses, letters must be on different keys and capitals need Shift.
+        let layout = try #require(KeyLayoutMap.current())
+        let t = try #require(layout.stroke(for: "t"))
+        let h = try #require(layout.stroke(for: "h"))
+        let capital = try #require(layout.stroke(for: "T"))
+        #expect(t.code != h.code)
+        #expect(!t.shift)
+        #expect(capital.code == t.code && capital.shift)
+    }
+
     @Test func postedEventsAreTaggedAndExact() {
         let events = KeyEventFactory.events(for: KeyPlan(backspaces: 2, text: "hé"), source: nil)
         #expect(events.count == 8)

@@ -30,6 +30,7 @@ final class AppModel: ObservableObject {
 
     private let defaults = UserDefaults.standard
     private let checker = AppleSpellChecker()
+    private let output = SystemKeyOutput()
     private let bridge: KeyboardBridge
     private let tap: KeyEventTap
     private var timer: Timer?
@@ -56,7 +57,8 @@ final class AppModel: ObservableObject {
         var hooks = KeyboardBridge.Hooks()
         hooks.didFix = { Task { @MainActor in AppModel.shared.recordFix() } }
         hooks.didUndo = { Task { @MainActor in AppModel.shared.recordUndo() } }
-        bridge = KeyboardBridge(output: SystemKeyOutput(), checker: TimeLimitedSpellChecker(checker), hooks: hooks)
+        output.setLayout(KeyLayoutMap.current())
+        bridge = KeyboardBridge(output: output, checker: TimeLimitedSpellChecker(checker), hooks: hooks)
         tap = KeyEventTap(bridge: bridge)
         bridge.neverCorrect = neverCorrect
         launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -217,7 +219,10 @@ final class AppModel: ObservableObject {
         observers.append(DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil, queue: .main
         ) { _ in
-            MainActor.assumeIsolated { AppModel.shared.bridge.reset() }
+            MainActor.assumeIsolated {
+                AppModel.shared.output.setLayout(KeyLayoutMap.current())
+                AppModel.shared.bridge.reset()
+            }
         })
         observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { AppModel.shared.bridge.reset() }
