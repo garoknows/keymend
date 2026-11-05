@@ -44,6 +44,16 @@ struct MenuContent: View {
             Button(model.currentAppSkipped ? "Don't Skip in \(name)" : "Skip in \(name)") {
                 model.toggleSkipCurrentApp()
             }
+            if model.currentAppIsTerminal {
+                if model.currentAppMode == .careful {
+                    Text("Careful Mode is on in \(name)")
+                }
+            } else if !model.currentAppSkipped {
+                Toggle("Careful Mode in \(name)", isOn: Binding(
+                    get: { model.currentAppMode == .careful },
+                    set: { _ in model.toggleCarefulCurrentApp() }
+                ))
+            }
         }
         SettingsLink { Text("Settings…") }
             .keyboardShortcut(",")

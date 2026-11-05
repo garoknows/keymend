@@ -11,13 +11,17 @@ public struct RawKeyEvent: Equatable, Sendable {
     public var characters: String
     /// True for events Keymend posted itself.
     public var isOwnEvent: Bool
+    /// True when another program posted this key instead of the keyboard (text expanders and
+    /// similar tools). Careful mode doesn't treat these as typed by the user.
+    public var isFromAnotherProgram: Bool
 
-    public init(kind: Kind, keyCode: UInt16 = 0, flags: CGEventFlags = [], characters: String = "", isOwnEvent: Bool = false) {
+    public init(kind: Kind, keyCode: UInt16 = 0, flags: CGEventFlags = [], characters: String = "", isOwnEvent: Bool = false, isFromAnotherProgram: Bool = false) {
         self.kind = kind
         self.keyCode = keyCode
         self.flags = flags
         self.characters = characters
         self.isOwnEvent = isOwnEvent
+        self.isFromAnotherProgram = isFromAnotherProgram
     }
 }
 
@@ -105,7 +109,11 @@ extension RawKeyEvent {
             keyCode: UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode)),
             flags: event.flags,
             characters: chars,
-            isOwnEvent: event.getIntegerValueField(.eventSourceUserData) == KeyEventClassifier.ownEventTag
+            isOwnEvent: event.getIntegerValueField(.eventSourceUserData) == KeyEventClassifier.ownEventTag,
+            // A real key press comes from the HID system with no posting process. Both signals must
+            // disagree before a key counts as posted, so keyboard remappers aren't caught by this.
+            isFromAnotherProgram: event.getIntegerValueField(.eventSourceStateID) != Int64(CGEventSourceStateID.hidSystemState.rawValue)
+                && event.getIntegerValueField(.eventSourceUnixProcessID) != 0
         )
     }
 }

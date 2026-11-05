@@ -74,7 +74,7 @@ func specialKey(_ code: UInt16, flags: CGEventFlags = []) -> CGEvent {
 
 struct FakeChecker: SpellChecking {
     var learned: Set<String> = []
-    func correction(for word: String) -> String? { fakeCheck(word) }
+    func verdict(for word: String) -> SpellVerdict { fakeCheck(word).map(SpellVerdict.fix) ?? .correct }
     func hasLearnedWord(_ word: String) -> Bool { learned.contains(word) }
 }
 
@@ -111,10 +111,13 @@ final class Harness {
         return true
     }
 
-    /// The user presses a key: the app gets it, and the tap sees it.
+    /// The user presses a key: the app gets it, and the tap sees it. Events made in a test look
+    /// posted by a program, so they're marked as coming from the keyboard here.
     func press(_ e: CGEvent) {
         field.apply(e)
-        bridge.receive(e, type: .keyDown)
+        var raw = RawKeyEvent(e, type: .keyDown)
+        raw.isFromAnotherProgram = false
+        bridge.receive(raw)
     }
 
     /// Types `s` one key at a time. `delay` is the time between keys.
@@ -293,6 +296,41 @@ struct BridgeHarnessTests {
         #expect(KeyEventClassifier.classify(RawKeyEvent(kind: .keyDown, keyCode: 14, characters: "")) == .reset)
         #expect(KeyEventClassifier.classify(RawKeyEvent(kind: .keyDown, keyCode: 122)) == nil)
         #expect(KeyEventClassifier.classify(RawKeyEvent(kind: .mouseDown)) == .reset)
+    }
+
+    @Test func lettersArePostedAsTheirRealKeys() {
+        // The "aaa" bug: every letter used to be posted as key code 0, the physical "A" key.
+        let layout = KeyLayoutMap(strokes: [
+            "t": KeyStroke(code: 17), "T": KeyStroke(code: 17, shift: true),
+            "h": KeyStroke(code: 4), "e": KeyStroke(code: 14), " ": KeyStroke(code: 49),
+        ])
+        let events = KeyEventFactory.events(for: KeyPlan(backspaces: 1, text: "The "), source: nil, layout: layout)
+        let downs = events.filter { $0.type == .keyDown }.map { RawKeyEvent($0, type: .keyDown) }
+        #expect(downs.map(\.keyCode) == [51, 17, 4, 14, 49])
+        #expect(downs.map(\.characters).suffix(4) == ["T", "h", "e", " "])
+        #expect(downs[1].flags.contains(.maskShift))
+        #expect(!downs[2].flags.contains(.maskShift))
+        // The Shift must be released on the key-up as well, with the same key.
+        let ups = events.filter { $0.type == .keyUp }.map { RawKeyEvent($0, type: .keyUp) }
+        #expect(ups.map(\.keyCode) == [51, 17, 4, 14, 49])
+    }
+
+    @Test func aCharacterTheLayoutCannotTypeIsReported() {
+        let layout = KeyLayoutMap(strokes: ["a": KeyStroke(code: 0)])
+        #expect(layout.canType("a"))
+        #expect(!layout.canType("aé"))
+    }
+
+    @MainActor
+    @Test func readsTheRealKeyboardLayout() throws {
+        // Whatever layout this Mac uses, letters must be on different keys and capitals need Shift.
+        let layout = try #require(KeyLayoutMap.current())
+        let t = try #require(layout.stroke(for: "t"))
+        let h = try #require(layout.stroke(for: "h"))
+        let capital = try #require(layout.stroke(for: "T"))
+        #expect(t.code != h.code)
+        #expect(!t.shift)
+        #expect(capital.code == t.code && capital.shift)
     }
 
     @Test func postedEventsAreTaggedAndExact() {

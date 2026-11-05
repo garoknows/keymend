@@ -7,7 +7,7 @@ import Foundation
 /// Thread model: `receive(_:)` is called on the event-tap thread and returns at once.
 /// The engine runs on its own serial queue, so the tap never waits for the spell checker.
 /// A fix is typed only if no other key arrived since the word ended; otherwise it is
-/// dropped, so a fast typist never loses or doubles characters.
+/// dropped. A key pressed while the fix is being typed can still land in the middle of it.
 public final class KeyboardBridge: @unchecked Sendable {
     public struct Hooks: Sendable {
         /// Called on the engine queue after a fix was typed.
@@ -28,6 +28,7 @@ public final class KeyboardBridge: @unchecked Sendable {
     private var latestSequence: UInt64 = 0
     private var _enabled = true
     private var _appSkipped = false
+    private var _appCareful = false
     private var _neverCorrect = NeverCorrectList()
 
     // Only touched on `queue`.
@@ -56,6 +57,12 @@ public final class KeyboardBridge: @unchecked Sendable {
         set { lock.withLock { _appSkipped = newValue }; reset() }
     }
 
+    /// True while the frontmost app uses the Careful rules (terminals).
+    public var isAppCareful: Bool {
+        get { lock.withLock { _appCareful } }
+        set { lock.withLock { _appCareful = newValue }; reset() }
+    }
+
     public var neverCorrect: NeverCorrectList {
         get { lock.withLock { _neverCorrect } }
         set { lock.withLock { _neverCorrect = newValue } }
@@ -71,15 +78,17 @@ public final class KeyboardBridge: @unchecked Sendable {
 
     /// Feeds one event from the tap. Returns immediately.
     public func receive(_ raw: RawKeyEvent) {
-        guard let input = KeyEventClassifier.classify(raw) else { return }
-        let active = lock.withLock { _enabled && !_appSkipped }
+        guard let classified = KeyEventClassifier.classify(raw) else { return }
+        let (active, careful) = lock.withLock { (_enabled && !_appSkipped, _appCareful) }
+        // In Careful mode only the user's own typing counts, not keys another program posts.
+        let input = careful && raw.isFromAnotherProgram ? KeyInput.reset : classified
         if !active || secureInputCheck() {
             // Paused, skipped app or password field: hold nothing at all.
             if input != .reset { reset() }
             return
         }
         let seq: UInt64 = lock.withLock { latestSequence &+= 1; return latestSequence }
-        queue.async { self.process(input, sequence: seq) }
+        queue.async { self.process(input, sequence: seq, careful: careful) }
     }
 
     /// Feeds a Core Graphics event (what the tap callback calls).
@@ -92,14 +101,17 @@ public final class KeyboardBridge: @unchecked Sendable {
         queue.sync {}
     }
 
-    private func process(_ input: KeyInput, sequence: UInt64) {
+    private func process(_ input: KeyInput, sequence: UInt64, careful: Bool) {
         let checker = self.checker
         let never = neverCorrect
-        let action = engine.handle(input) { word in
-            if never.contains(word) || checker.hasLearnedWord(word) { return nil }
-            return checker.correction(for: word)
-        }
+        engine.isCareful = careful
+        let action = engine.handle(input, verdict: { word in
+            if never.contains(word) || checker.hasLearnedWord(word) { return .correct }
+            return checker.verdict(for: word)
+        })
         guard let plan = action.plan else { return }
+        // Careful mode won't risk a wrong letter: every character must have a real key.
+        if careful, !output.canType(plan.text) { return }
         // Another key arrived while we were checking: the screen has moved on.
         guard lock.withLock({ latestSequence == sequence }) else { return }
         hooks.beforePerform()

@@ -1,3 +1,10 @@
+### Next release (not published yet)
+- **Careful Mode for terminals, on by default in Ghostty only.** It fixes lines that look like plain language and leaves anything that looks like a command or code alone. It can't promise commands are never changed: see "Known gaps" in the README.
+- **Terminal password prompts can reach Keymend's memory** in a terminal where Keymend is on, unless that terminal turns on Secure Input. Ghostty does when it detects a prompt, but not over SSH.
+- Typed letters now use their real keys, so programs that read the physical key should get the right letter. Not yet tested in those programs.
+- If you've changed your skip list before, Ghostty stays on it until you choose "Don't Skip in Ghostty".
+- Permissions are checked every 30 seconds once granted, instead of every 2.
+
 Keymend fixes spelling as you type, in every Mac app, using Apple's own on-device spell checker. It never connects to the internet.
 
 ### What it does

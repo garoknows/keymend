@@ -22,8 +22,14 @@ That's all. There are no logs, no history, no files with typed text, no analytic
 ## What it can't do
 
 - **Connect to the internet.** Keymend runs in Apple's App Sandbox without the network permission. macOS blocks every connection attempt, including from a bug.
-- **See passwords.** When a password field is active, macOS turns on Secure Input and stops all apps like Keymend from receiving keys. Keymend also checks for Secure Input and does nothing while it's on. Password managers are on the default skip list as well.
+- **See password fields.** When a password field is active, macOS turns on Secure Input and stops all apps like Keymend from receiving keys. Keymend also checks for Secure Input and does nothing while it's on. Password managers are on the default skip list as well.
 - **Read your screen, files or contacts.** It doesn't have those permissions and never asks for them.
+
+## The exception: terminal password prompts
+
+A password prompt in a terminal (`sudo`, `ssh`) uses Secure Input only if the terminal turns it on. If it doesn't, Keymend receives those keys like any others. It holds the current word in memory, writes nothing down, and forgets the word when it ends. Keymend turns off the line right after a command, which lowers the chance of changing a passphrase but doesn't stop it seeing the keys.
+
+Careful Mode is on by default only in Ghostty, which turns on Secure Input when it detects a password prompt. That detection is a best guess and doesn't work over SSH, so over SSH the keys can reach Keymend's memory. Other terminals stay skipped unless you change that, and skipped apps give Keymend nothing to hold.
 
 ## How to check
 

@@ -53,6 +53,9 @@ public struct WordEngine: Sendable {
     private var undoable: Correction?
     /// Words the user undid this session (lowercased). Never fixed again until quit.
     private(set) public var sessionIgnored: Set<String> = []
+    /// True in apps that use the Careful rules (terminals). See `CarefulLine`.
+    public var isCareful = false { didSet { if oldValue != isCareful { careful = CarefulLine() } } }
+    private var careful = CarefulLine()
 
     public init() {}
 
@@ -60,7 +63,14 @@ public struct WordEngine: Sendable {
     public var currentWord: String { buffer }
 
     /// Feeds one keystroke. `check` is asked for a correction only when a word ends.
+    @discardableResult
     public mutating func handle(_ input: KeyInput, check: (String) -> String?) -> EngineAction {
+        handle(input, verdict: { word in check(word).map(SpellVerdict.fix) ?? .correct })
+    }
+
+    /// Feeds one keystroke. `verdict` is asked about a word only when a word ends.
+    @discardableResult
+    public mutating func handle(_ input: KeyInput, verdict: (String) -> SpellVerdict) -> EngineAction {
         let pendingUndo = undoable
         undoable = nil
 
@@ -68,6 +78,7 @@ public struct WordEngine: Sendable {
         case .backspace:
             if let fix = pendingUndo {
                 sessionIgnored.insert(fix.original.lowercased())
+                careful.stop()
                 // After the undo the screen ends with the original word (minus the
                 // character Delete removed), so keep tracking it as the current word.
                 buffer = String((fix.original + fix.suffix).dropLast())
@@ -76,6 +87,7 @@ public struct WordEngine: Sendable {
             }
             if buffer.isEmpty {
                 tainted = true
+                careful.stop()
             } else {
                 let removed = buffer.removeLast()
                 if removed == "`" { insideBackticks.toggle() }
@@ -83,19 +95,19 @@ public struct WordEngine: Sendable {
             return .none
 
         case .newline:
-            clearWord(tainted: false)
-            insideBackticks = false
+            endLine(verdict: verdict)
             return .none
 
         case .tab, .reset:
             clearWord(tainted: true)
             insideBackticks = false
+            careful.stop()
             return .none
 
         case .text(let s):
             var action = EngineAction.none
             for ch in s {
-                action = handleCharacter(ch, check: check)
+                action = handleCharacter(ch, verdict: verdict)
             }
             return action
         }
@@ -111,6 +123,16 @@ public struct WordEngine: Sendable {
         clearWord(tainted: true)
         insideBackticks = false
         undoable = nil
+        careful = CarefulLine()
+    }
+
+    private mutating func endLine(verdict: (String) -> SpellVerdict) {
+        if isCareful {
+            let ignored = sessionIgnored
+            careful.endLine(lastWord: buffer) { ignored.contains($0.lowercased()) ? .correct : verdict($0) }
+        }
+        clearWord(tainted: false)
+        insideBackticks = false
     }
 
     private mutating func clearWord(tainted: Bool) {
@@ -118,15 +140,14 @@ public struct WordEngine: Sendable {
         self.tainted = tainted
     }
 
-    private mutating func handleCharacter(_ ch: Character, check: (String) -> String?) -> EngineAction {
+    private mutating func handleCharacter(_ ch: Character, verdict: (String) -> SpellVerdict) -> EngineAction {
         if WordEngine.whitespaceTriggers.contains(ch) {
-            let action = evaluate(word: buffer, delimiter: String(ch), check: check)
+            let action = evaluate(word: buffer, delimiter: String(ch), verdict: verdict)
             clearWord(tainted: false)
             return action
         }
         if ch.isNewline {
-            clearWord(tainted: false)
-            insideBackticks = false
+            endLine(verdict: verdict)
             return .none
         }
         if WordEngine.immediateTriggers.contains(ch) {
@@ -134,7 +155,7 @@ public struct WordEngine: Sendable {
             // Only trigger when the word so far has no trailing punctuation of its own
             // ("teh," yes; "ok?!" is handled when the space comes).
             if token.trailing.isEmpty, !buffer.isEmpty {
-                let action = evaluate(word: buffer, delimiter: String(ch), check: check)
+                let action = evaluate(word: buffer, delimiter: String(ch), verdict: verdict)
                 clearWord(tainted: false)
                 // Keep later punctuation from being treated as part of a new word.
                 return action
@@ -145,11 +166,20 @@ public struct WordEngine: Sendable {
         if buffer.count > SkipRules.maxWordLength + 8 {
             // Far too long to be a word: stop holding it.
             clearWord(tainted: true)
+            careful.stop()
         }
         return .none
     }
 
-    private func evaluate(word raw: String, delimiter: String, check: (String) -> String?) -> EngineAction {
+    private mutating func evaluate(word raw: String, delimiter: String, verdict: (String) -> SpellVerdict) -> EngineAction {
+        if isCareful {
+            // A word the user undid this session counts as correct.
+            let ignored = sessionIgnored
+            guard let suggestion = careful.consider(raw, verdict: { ignored.contains($0.lowercased()) ? .correct : verdict($0) }) else { return .none }
+            let token = Token(parsing: raw)
+            guard !tainted, let replacement = WordEngine.acceptable(suggestion, for: token.core) else { return .none }
+            return .correct(Correction(original: token.core, replacement: replacement, suffix: token.trailing + delimiter))
+        }
         if tainted || raw.isEmpty { return .none }
         // A backtick earlier on the line means this word may be code. The toggle already
         // ran for backticks inside `raw`, so look at the state before this word.
@@ -160,7 +190,7 @@ public struct WordEngine: Sendable {
         let token = Token(parsing: raw)
         let word = token.core
         if sessionIgnored.contains(word.lowercased()) { return .none }
-        guard let suggestion = check(word) else { return .none }
+        guard case .fix(let suggestion) = verdict(word) else { return .none }
         guard let replacement = WordEngine.acceptable(suggestion, for: word) else { return .none }
         return .correct(Correction(original: word, replacement: replacement, suffix: token.trailing + delimiter))
     }

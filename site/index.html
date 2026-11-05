@@ -130,10 +130,11 @@
   <section>
     <h2>Quiet by design</h2>
     <div class="grid">
-      <div class="card"><h3>Fixes when a word ends</h3><p>After space, Return, Tab or punctuation, the finished word is checked. Only confident fixes are made.</p></div>
+      <div class="card"><h3>Fixes when a word ends</h3><p>After a space or punctuation, the finished word is checked. Only confident fixes are made.</p></div>
       <div class="card"><h3>Instant undo</h3><p>Delete right after a fix restores what you typed.</p></div>
       <div class="card"><h3>Pause anytime</h3><p>One switch in the menu bar, or Control-Option-K from anywhere.</p></div>
-      <div class="card"><h3>Stays out of the way</h3><p>Skips terminals, code editors and apps that already autocorrect. Add or remove apps yourself.</p></div>
+      <div class="card"><h3>Stays out of the way</h3><p>Skips most terminals, code editors and apps that already autocorrect. Add or remove apps yourself.</p></div>
+      <div class="card"><h3>Careful in terminals</h3><p>In Ghostty, it fixes only lines that look like plain language and leaves commands and code alone. It can't be perfect, so <a href="https://github.com/garoknows/keymend#known-gaps">the gaps are listed</a>.</p></div>
       <div class="card"><h3>Smart skips</h3><p>Leaves ALL CAPS, words with numbers, links, emails, file paths, @mentions, #tags and <code>code</code> alone.</p></div>
       <div class="card"><h3>Your words</h3><p>A personal dictionary of words to never touch, shared with the Mac's own Learn Spelling list.</p></div>
     </div>
@@ -145,7 +146,7 @@
     <div class="grid">
       <div class="card promise"><h3>No internet, enforced by Apple</h3><p>Keymend runs in Apple's App Sandbox with no network permission. macOS blocks any connection.</p></div>
       <div class="card promise"><h3>Nothing typed is saved</h3><p>Only the word you are typing is held in memory, and it is cleared when the word ends. No logs, no files, no analytics.</p></div>
-      <div class="card promise"><h3>Passwords are never seen</h3><p>Password fields turn on macOS Secure Input, which stops Keymend from seeing keys. It also checks and does nothing while it is on.</p></div>
+      <div class="card promise"><h3>Password fields are off limits</h3><p>Password fields turn on macOS Secure Input, which stops Keymend from seeing keys. A terminal password prompt only does this if the terminal turns it on, so <a href="https://github.com/garoknows/keymend#passwords-in-terminals">read the exception</a>.</p></div>
       <div class="card promise"><h3>Only two permissions</h3><p>Input Monitoring to see keys, and permission to type the fix. No screen recording, files or contacts.</p></div>
       <div class="card promise"><h3>No third-party code</h3><p>Plain Swift and Apple frameworks. No analytics, no auto-updater.</p></div>
       <div class="card promise"><h3>Open source</h3><p>Read every line, or build it yourself. MIT license.</p></div>

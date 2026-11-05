@@ -16,7 +16,8 @@ Keymend is a small menu bar app that fixes them as you type, in every app. It us
 - **Fixes a word when it ends.** After you type a space or `, ; ! ?`, the finished word is checked. If Apple's spell checker has a confident correction, Keymend swaps it in. `teh ` becomes `the `.
 - **Instant undo.** Press Delete right after a fix to get your word back. Keymend then leaves that word alone until you quit it.
 - **Pause anytime.** The switch in the menu, or Control-Option-K from anywhere.
-- **Skips apps.** Off by default in terminals, code editors, password managers and apps that already autocorrect (Ghostty, Terminal, iTerm, VS Code, Xcode, Cursor, Word, Notes, Mail, Pages, Messages, Safari and more). Add or remove apps in Settings, or with "Skip in [app]" in the menu.
+- **Skips apps.** Off by default in most terminals, code editors, password managers and apps that already autocorrect (Terminal, iTerm, VS Code, Xcode, Cursor, Word, Notes, Mail, Pages, Messages, Safari and more). Add or remove apps in Settings, or with "Skip in [app]" in the menu.
+- **Careful Mode for terminals.** On by default in Ghostty only. It fixes lines that look like plain language and leaves anything that looks like a command or code alone. It can't be perfect: read [Terminals and Careful Mode](#terminals-and-careful-mode).
 - **Smart skips.** Never touches ALL CAPS, words with numbers, links, email addresses, file paths, @mentions, #tags, or anything inside `backticks`.
 - **Your words.** A personal dictionary of words to never change. It starts empty and is shared with the Mac's own "Learn Spelling" list.
 - **Today's count.** The menu shows how many typos it fixed today. It counts; it never keeps the words.
@@ -58,12 +59,66 @@ To fix typing, an app has to see your keys. That makes Keymend technically a key
 
 1. **No internet, enforced by Apple.** Keymend runs in the App Sandbox with no network permission. macOS blocks any connection, even from a future bug.
 2. **Nothing typed is saved.** Only the word you're typing right now is held in memory, and it's cleared when the word ends, when you switch apps, or click. No logs, files, analytics or crash reports.
-3. **Passwords are never seen.** Password fields turn on macOS Secure Input, which stops Keymend from receiving keys. Keymend also checks for it and does nothing while it's on.
+3. **Password fields stop Keymend seeing keys.** They turn on macOS Secure Input, which stops Keymend from receiving keys. Keymend also checks for it and does nothing while it's on. **The exception is terminal password prompts.** They only use Secure Input if the terminal turns it on, so otherwise the keys reach Keymend's memory ([details](#passwords-in-terminals)).
 4. **Only two permissions**, listed above.
 5. **No third-party code.** Plain Swift and Apple frameworks. No analytics, no auto-updater.
 6. **Open source.** Read it, or build it yourself.
 
 `scripts/check-privacy.sh` checks the entitlements, the source and the built app for these rules. CI runs it on every push.
+
+## Terminals and Careful Mode
+
+Keymend only sees key presses. It can't read the screen or tell what's running in a terminal. So in Careful Mode a line stays off unless it looks like plain language, such as a message to a coding assistant.
+
+**It leaves a line alone when:**
+
+- Keymend hasn't seen it from its start. After you switch to the terminal, nothing is fixed until you press Return once.
+- It starts with a known command (`cd`, `git`, `brew`, `sudo`, `python` and many more), or with `!`, `./`, `$` or a path.
+- Its first word isn't a real word.
+- It comes right after a command line, a trailing `\` or `<<`. The next line could be a password prompt or more of the same command.
+- You pasted, clicked, pressed an arrow key, Tab, Escape or a Control or Command shortcut. The rest of that line stays off.
+- It's inside a ` ``` ` code block.
+
+**It stops at the first word that looks like code or that it doesn't recognize:** anything containing `/ \ . _ - = $ ~ @ : # *` or backticks (a full stop or comma at the end of a word is fine), flags, paths, links, emails, ALL CAPS, camelCase, digits, or a misspelled word with no confident fix.
+
+**It never fixes:**
+
+- Words in quotes.
+- A misspelled word before two correctly spelled words have appeared on the line.
+- The last word when you press Return. Keymend never presses Return, so a fix can't run a command by itself, but it can change one you then run.
+
+To turn it off fast, use "Skip in [app]" in the menu, or Control-Option-K to pause everywhere.
+
+### Known gaps
+
+**Careful Mode can't promise that commands are never changed.** A command Keymend has never heard of, with plain words after it, looks exactly like a sentence. These can still change:
+
+```
+deploy the staging servr
+install the latest packge
+restart the main sevice
+```
+
+Other limits:
+
+- Lines inside a multi-line command, after the first, and lines typed into a program's own prompt (a database shell, for example) can look like prose.
+- Programs where keys are commands, like vim or less, may receive a Delete or a letter if what you type there looks like a sentence.
+- Keys posted by text expanders and similar tools are detected only if they don't present themselves as a real keyboard.
+- Fixes are limited on purpose. Expect fewer fixes than in other apps.
+
+The tests in `CarefulModeTests.swift` type more than 100 made-up commands, paths, code lines and prose lines key by key, with a stand-in spell checker that wants to change every word it doesn't know. They include a known-gaps test that lists lines which still change, so the limit stays visible.
+
+### Passwords in terminals
+
+A terminal password prompt (`sudo`, `ssh`) doesn't have to use Secure Input. If it doesn't, the keys reach Keymend's memory like any others. Keymend writes nothing down, but it holds the current word in memory while you type it, and a passphrase with spaces could be "fixed", which would make the login fail.
+
+That's why Careful Mode is on by default only in Ghostty, which turns on Secure Input when it detects a password prompt. Ghostty's detection is a best guess and doesn't work over SSH. Keep it on by adding this line to your Ghostty config (it's on by default):
+
+```
+macos-auto-secure-input = true
+```
+
+Terminal, iTerm and other terminals stay skipped unless you change that, and Keymend warns you first. Turning on Secure Keyboard Entry in a terminal protects its password prompts, and it also stops Keymend working in that terminal.
 
 ## How it works
 
@@ -79,7 +134,7 @@ scripts/check-privacy.sh                         # privacy rules
 brew install xcodegen && xcodegen generate       # Xcode project from project.yml
 ```
 
-The word engine and keyboard bridge live in `Packages/KeymendCore` with no UI. The harness tests feed real `CGEvent`s through the bridge into a simulated text field and check exactly what text arrives, including typing at 400 words per minute.
+The word engine and keyboard bridge live in `Packages/KeymendCore` with no UI. The harness tests feed real `CGEvent`s through the bridge into a simulated text field and check exactly what text arrives, including typing at 400 words per minute. That field applies each fix as one unit, so these tests don't catch a key landing in the middle of a fix.
 
 ## Known limits (v1.0)
 

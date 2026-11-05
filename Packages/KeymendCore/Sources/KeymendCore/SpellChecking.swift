@@ -3,10 +3,18 @@ import Foundation
 
 /// Something that can suggest a confident correction for a single word.
 public protocol SpellChecking: Sendable {
-    /// A confident correction for `word`, or nil to leave it alone.
-    func correction(for word: String) -> String?
+    /// Whether `word` is spelled correctly and, if not, whether there's a confident correction.
+    func verdict(for word: String) -> SpellVerdict
     /// True when the word is in the Mac's own "Learn Spelling" list.
     func hasLearnedWord(_ word: String) -> Bool
+}
+
+extension SpellChecking {
+    /// A confident correction for `word`, or nil to leave it alone.
+    public func correction(for word: String) -> String? {
+        if case .fix(let s) = verdict(for: word) { return s }
+        return nil
+    }
 }
 
 /// Apple's on-device spell checker, the same engine as Mac autocorrect. Offline.
@@ -22,7 +30,7 @@ public final class AppleSpellChecker: SpellChecking, @unchecked Sendable {
         NSSpellChecker.shared.closeSpellDocument(withTag: tag)
     }
 
-    public func correction(for word: String) -> String? {
+    public func verdict(for word: String) -> SpellVerdict {
         lock.lock(); defer { lock.unlock() }
         let checker = NSSpellChecker.shared
         let ns = word as NSString
@@ -31,9 +39,10 @@ public final class AppleSpellChecker: SpellChecking, @unchecked Sendable {
         // Only words the checker flags as misspelled are candidates.
         let miss = checker.checkSpelling(of: word, startingAt: 0, language: language, wrap: false,
                                          inSpellDocumentWithTag: tag, wordCount: nil)
-        guard miss.location != NSNotFound else { return nil }
+        guard miss.location != NSNotFound else { return .correct }
         // `correction(forWordRange:)` returns Apple's autocorrection, only when it is confident.
-        return checker.correction(forWordRange: range, in: word, language: language, inSpellDocumentWithTag: tag)
+        let fix = checker.correction(forWordRange: range, in: word, language: language, inSpellDocumentWithTag: tag)
+        return fix.map(SpellVerdict.fix) ?? .unknown
     }
 
     public func hasLearnedWord(_ word: String) -> Bool {
@@ -65,16 +74,17 @@ public final class TimeLimitedSpellChecker: SpellChecking, @unchecked Sendable {
         self.limit = limit
     }
 
-    public func correction(for word: String) -> String? {
+    /// Running out of time counts as `.unknown`: nothing gets fixed.
+    public func verdict(for word: String) -> SpellVerdict {
         let box = ResultBox()
         let done = DispatchSemaphore(value: 0)
         let base = self.base
         queue.async {
-            box.set(base.correction(for: word))
+            box.set(base.verdict(for: word))
             done.signal()
         }
-        guard done.wait(timeout: .now() + limit) == .success else { return nil }
-        return box.get()
+        guard done.wait(timeout: .now() + limit) == .success else { return .unknown }
+        return box.get() ?? .unknown
     }
 
     public func hasLearnedWord(_ word: String) -> Bool {
@@ -83,8 +93,8 @@ public final class TimeLimitedSpellChecker: SpellChecking, @unchecked Sendable {
 
     private final class ResultBox: @unchecked Sendable {
         private let lock = NSLock()
-        private var value: String?
-        func set(_ v: String?) { lock.lock(); value = v; lock.unlock() }
-        func get() -> String? { lock.lock(); defer { lock.unlock() }; return value }
+        private var value: SpellVerdict?
+        func set(_ v: SpellVerdict) { lock.lock(); value = v; lock.unlock() }
+        func get() -> SpellVerdict? { lock.lock(); defer { lock.unlock() }; return value }
     }
 }
