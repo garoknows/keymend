@@ -79,16 +79,24 @@ struct AppsTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Keymend stays off in these apps.")
+            Text("Careful Mode fixes only lines that look like plain language, for apps where you also type commands or code. Keymend stays off completely in skipped apps.")
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             List(selection: $selection) {
-                ForEach(model.skipList, id: \.self) { id in
-                    AppRow(bundleID: id).tag(id)
+                Section("Careful Mode") {
+                    ForEach(model.carefulList.filter { !model.skipList.contains($0) }, id: \.self) { id in
+                        AppRow(bundleID: id).tag(id)
+                    }
+                }
+                Section("Skipped") {
+                    ForEach(model.skipList, id: \.self) { id in
+                        AppRow(bundleID: id).tag(id)
+                    }
                 }
             }
             .listStyle(.bordered(alternatesRowBackgrounds: true))
             HStack {
-                Menu("Add App") {
+                Menu("Skip App") {
                     ForEach(runningApps, id: \.bundleIdentifier) { app in
                         Button(app.localizedName ?? app.bundleIdentifier ?? "") {
                             if let id = app.bundleIdentifier { model.addSkip(id) }
@@ -96,8 +104,19 @@ struct AppsTab: View {
                     }
                 }
                 .fixedSize()
+                Menu("Careful App") {
+                    ForEach(runningApps, id: \.bundleIdentifier) { app in
+                        Button(app.localizedName ?? app.bundleIdentifier ?? "") {
+                            if let id = app.bundleIdentifier { model.addCareful(id) }
+                        }
+                    }
+                }
+                .fixedSize()
                 Button("Remove") {
-                    if let s = selection { model.removeSkip(s); selection = nil }
+                    if let s = selection {
+                        if model.skipList.contains(s) { model.removeSkip(s) } else { model.removeCareful(s) }
+                        selection = nil
+                    }
                 }
                 .disabled(selection == nil)
                 Spacer()
@@ -110,7 +129,7 @@ struct AppsTab: View {
     private var runningApps: [NSRunningApplication] {
         NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular && $0.bundleIdentifier != nil && $0.bundleIdentifier != Bundle.main.bundleIdentifier }
-            .filter { !model.skipList.contains($0.bundleIdentifier!) }
+            .filter { !model.skipList.contains($0.bundleIdentifier!) && !model.carefulList.contains($0.bundleIdentifier!) }
             .sorted { ($0.localizedName ?? "") < ($1.localizedName ?? "") }
     }
 }

@@ -74,7 +74,7 @@ func specialKey(_ code: UInt16, flags: CGEventFlags = []) -> CGEvent {
 
 struct FakeChecker: SpellChecking {
     var learned: Set<String> = []
-    func correction(for word: String) -> String? { fakeCheck(word) }
+    func verdict(for word: String) -> SpellVerdict { fakeCheck(word).map(SpellVerdict.fix) ?? .correct }
     func hasLearnedWord(_ word: String) -> Bool { learned.contains(word) }
 }
 
@@ -111,10 +111,13 @@ final class Harness {
         return true
     }
 
-    /// The user presses a key: the app gets it, and the tap sees it.
+    /// The user presses a key: the app gets it, and the tap sees it. Events made in a test look
+    /// posted by a program, so they're marked as coming from the keyboard here.
     func press(_ e: CGEvent) {
         field.apply(e)
-        bridge.receive(e, type: .keyDown)
+        var raw = RawKeyEvent(e, type: .keyDown)
+        raw.isFromAnotherProgram = false
+        bridge.receive(raw)
     }
 
     /// Types `s` one key at a time. `delay` is the time between keys.

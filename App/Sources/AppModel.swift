@@ -14,6 +14,7 @@ final class AppModel: ObservableObject {
     // Settings (UserDefaults, inside the app's sandbox container).
     @Published var isEnabled: Bool { didSet { defaults.set(isEnabled, forKey: Keys.enabled); applyState() } }
     @Published private(set) var skipList: [String]
+    @Published private(set) var carefulList: [String]
     @Published private(set) var neverCorrect: NeverCorrectList
     @Published private(set) var fixCount = DailyFixCount()
     @Published var launchAtLogin: Bool = false
@@ -26,7 +27,16 @@ final class AppModel: ObservableObject {
 
     var permissionsGranted: Bool { canListen && canPost }
     var todayCount: Int { fixCount.count(on: Date()) }
-    var currentAppSkipped: Bool { currentApp?.bundleIdentifier.map(skipList.contains) ?? false }
+    var currentAppMode: AppMode {
+        guard let id = currentApp?.bundleIdentifier else { return .on }
+        return mode(for: id)
+    }
+    var currentAppSkipped: Bool { currentAppMode == .skip }
+    var currentAppIsTerminal: Bool { currentApp?.bundleIdentifier.map(AppModePolicy.terminals.contains) ?? false }
+
+    func mode(for id: String) -> AppMode {
+        AppModePolicy.mode(for: id, skipList: skipList, carefulList: carefulList)
+    }
 
     private let defaults = UserDefaults.standard
     private let checker = AppleSpellChecker()
@@ -40,15 +50,17 @@ final class AppModel: ObservableObject {
     enum Keys {
         static let enabled = "enabled"
         static let skipList = "skipBundleIDs"
+        static let carefulList = "carefulBundleIDs"
         static let neverCorrect = "neverCorrectWords"
         static let fixCount = "fixCount"
         static let setupShown = "setupShown"
     }
 
     private init() {
-        defaults.register(defaults: [Keys.enabled: true, Keys.skipList: DefaultSkipList.bundleIDs])
+        defaults.register(defaults: [Keys.enabled: true, Keys.skipList: DefaultSkipList.bundleIDs, Keys.carefulList: DefaultCarefulList.bundleIDs])
         isEnabled = defaults.bool(forKey: Keys.enabled)
         skipList = defaults.stringArray(forKey: Keys.skipList) ?? DefaultSkipList.bundleIDs
+        carefulList = defaults.stringArray(forKey: Keys.carefulList) ?? DefaultCarefulList.bundleIDs
         neverCorrect = NeverCorrectList(words: defaults.stringArray(forKey: Keys.neverCorrect) ?? [])
         if let data = defaults.data(forKey: Keys.fixCount), let c = try? JSONDecoder().decode(DailyFixCount.self, from: data) {
             fixCount = c
@@ -70,10 +82,6 @@ final class AppModel: ObservableObject {
         registerHotKey()
         updateFrontmostApp(NSWorkspace.shared.frontmostApplication)
         refreshPermissions()
-        // Re-check permissions every 2 s until both are granted, then every 30 s.
-        timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
-            Task { @MainActor in AppModel.shared.refreshPermissions() }
-        }
         if !permissionsGranted || !defaults.bool(forKey: Keys.setupShown) {
             SetupWindowController.shared.show()
         }
@@ -88,6 +96,17 @@ final class AppModel: ObservableObject {
         if post != canPost { canPost = post }
         if listen && !tap.isRunning { tap.start() }
         if permissionsGranted { defaults.set(true, forKey: Keys.setupShown) }
+        schedulePermissionCheck()
+    }
+
+    /// Re-checks permissions every 2 s until both are granted, then every 30 s.
+    private func schedulePermissionCheck() {
+        let interval: TimeInterval = permissionsGranted ? 30 : 2
+        if let timer, timer.isValid, timer.timeInterval == interval { return }
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
+            Task { @MainActor in AppModel.shared.refreshPermissions() }
+        }
     }
 
     func requestListenPermission() {
@@ -112,27 +131,65 @@ final class AppModel: ObservableObject {
 
     func toggleSkipCurrentApp() {
         guard let id = currentApp?.bundleIdentifier else { return }
-        if skipList.contains(id) { removeSkip(id) } else { addSkip(id) }
+        if skipList.contains(id) {
+            guard confirmTerminal(id) else { return }
+            removeSkip(id)
+        } else {
+            addSkip(id)
+        }
+    }
+
+    /// Only Ghostty detects password prompts well enough to run without a warning.
+    private func confirmTerminal(_ id: String) -> Bool {
+        guard AppModePolicy.terminals.contains(id), !DefaultCarefulList.bundleIDs.contains(id) else { return true }
+        let alert = NSAlert()
+        alert.messageText = "Use Keymend in this terminal?"
+        alert.informativeText = "Keymend will use Careful Mode here. A password typed at a terminal prompt can reach Keymend's memory unless this terminal turns on Secure Keyboard Entry, which also stops Keymend working in it. Nothing is saved, but a passphrase with spaces could be changed. Some commands can still change: see the README."
+        alert.addButton(withTitle: "Use Careful Mode")
+        alert.addButton(withTitle: "Keep Skipping")
+        NSApp.activate(ignoringOtherApps: true)
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    func toggleCarefulCurrentApp() {
+        guard let id = currentApp?.bundleIdentifier, !AppModePolicy.terminals.contains(id) else { return }
+        if carefulList.contains(id) { removeCareful(id) } else { addCareful(id) }
+    }
+
+    func addCareful(_ id: String) {
+        guard !carefulList.contains(id) else { return }
+        carefulList.append(id)
+        skipList.removeAll { $0 == id }
+        saveModes()
+    }
+
+    /// A terminal is never in plain On mode, so taking one off this list skips it instead.
+    func removeCareful(_ id: String) {
+        carefulList.removeAll { $0 == id }
+        if AppModePolicy.terminals.contains(id), !skipList.contains(id) { skipList.append(id) }
+        saveModes()
     }
 
     func addSkip(_ id: String) {
         guard !skipList.contains(id) else { return }
         skipList.append(id)
-        saveSkipList()
+        saveModes()
     }
 
     func removeSkip(_ id: String) {
         skipList.removeAll { $0 == id }
-        saveSkipList()
+        saveModes()
     }
 
     func resetSkipList() {
         skipList = DefaultSkipList.bundleIDs
-        saveSkipList()
+        carefulList = DefaultCarefulList.bundleIDs
+        saveModes()
     }
 
-    private func saveSkipList() {
+    private func saveModes() {
         defaults.set(skipList, forKey: Keys.skipList)
+        defaults.set(carefulList, forKey: Keys.carefulList)
         applyState()
     }
 
@@ -192,7 +249,8 @@ final class AppModel: ObservableObject {
 
     private func applyState() {
         bridge.isEnabled = isEnabled
-        bridge.isAppSkipped = currentAppSkipped
+        bridge.isAppSkipped = currentAppMode == .skip
+        bridge.isAppCareful = currentAppMode == .careful
     }
 
     private func updateFrontmostApp(_ app: NSRunningApplication?) {

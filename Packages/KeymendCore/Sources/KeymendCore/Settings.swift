@@ -30,15 +30,24 @@ public struct NeverCorrectList: Equatable, Sendable {
     }
 }
 
-/// Apps where Keymend stays off. Defaults: terminals, code editors and apps that
-/// already autocorrect with Apple's own text system.
+/// Apps that use the Careful rules out of the box.
+public enum DefaultCarefulList {
+    public static let bundleIDs: [String] = ["com.mitchellh.ghostty"]
+}
+
+/// Apps where Keymend stays off. Defaults: terminals other than Ghostty, code editors and
+/// apps that already autocorrect with Apple's own text system.
 public enum DefaultSkipList {
     public static let bundleIDs: [String] = [
         // Terminals
-        "com.mitchellh.ghostty",
         "com.apple.Terminal",
         "com.googlecode.iterm2",
         "dev.warp.Warp-Stable",
+        "net.kovidgoyal.kitty",
+        "org.alacritty",
+        "com.github.wez.wezterm",
+        "co.zeit.hyper",
+        "org.tabby",
         // Code editors
         "com.microsoft.VSCode",
         "com.microsoft.VSCodeInsiders",

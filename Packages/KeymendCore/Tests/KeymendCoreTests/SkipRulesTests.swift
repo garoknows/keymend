@@ -96,7 +96,7 @@ struct SettingsTests {
 
     @Test func defaultSkipListCoversThePRD() {
         let ids = Set(DefaultSkipList.bundleIDs)
-        for id in ["com.mitchellh.ghostty", "com.apple.Terminal", "com.googlecode.iterm2", "com.microsoft.VSCode",
+        for id in ["com.apple.Terminal", "com.googlecode.iterm2", "com.microsoft.VSCode",
                    "com.apple.dt.Xcode", "com.microsoft.Word", "com.apple.Notes", "com.apple.mail",
                    "com.apple.iWork.Pages", "com.apple.MobileSMS", "com.apple.Safari"] {
             #expect(ids.contains(id), "missing \(id)")
@@ -152,7 +152,7 @@ struct AppleSpellCheckerTests {
 
     @Test func timeLimitGivesUp() {
         struct Slow: SpellChecking {
-            func correction(for word: String) -> String? { Thread.sleep(forTimeInterval: 0.3); return "x" }
+            func verdict(for word: String) -> SpellVerdict { Thread.sleep(forTimeInterval: 0.3); return .fix("x") }
             func hasLearnedWord(_ word: String) -> Bool { false }
         }
         let limited = TimeLimitedSpellChecker(Slow(), limit: .milliseconds(50))
