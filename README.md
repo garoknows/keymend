@@ -3,7 +3,7 @@
 <h1 align="center">keymend</h1>
 
 <p align="center">Spelling fixes as you type, in every Mac app.<br>
-<a href="https://garoknows.github.io/keymend/">Website</a> · <a href="https://github.com/garoknows/keymend/releases">Download</a> · <a href="docs/PRIVACY.md">Privacy</a> · <a href="docs/INSTALL.md">Install guide</a></p>
+<a href="https://garoknows.github.io/keymend/">Website</a> · <a href="https://github.com/garoknows/keymend/releases/tag/v1.0.2">Download</a> · <a href="docs/PRIVACY.md">Privacy</a> · <a href="docs/INSTALL.md">Install guide</a></p>
 
 Mac autocorrect only works in apps built with Apple's own text tools, like Notes, Mail and Messages. In Chrome, Arc, Dia, Slack, Obsidian, the Claude and ChatGPT desktop apps and other apps built on web technology, typos just get a red underline. No Mac setting changes that.
 
@@ -30,7 +30,7 @@ Return and Tab end a word without fixing it, on purpose: in chat apps Return sen
 
 Careful Mode and the Learning Dictionary are in the 1.1.0 pre-release, which hasn't had daily use yet. Keymend 1.0.2 is still the main download and doesn't have them. Word suggestions are only in the 1.2.0 beta.
 
-1. Download `Keymend-1.0.2.dmg` from [Releases](https://github.com/garoknows/keymend/releases), or `Keymend-1.1.0.dmg` to try the pre-release, open it and drag **Keymend** into Applications.
+1. Download [`Keymend-1.0.2.dmg`](https://github.com/garoknows/keymend/releases/tag/v1.0.2), or [`Keymend-1.1.0.dmg`](https://github.com/garoknows/keymend/releases/tag/v1.1.0) to try the pre-release, open it and drag **Keymend** into Applications.
 2. Open Keymend. It's signed with a Developer ID and notarized by Apple, so it opens normally. ([Step-by-step guide](docs/INSTALL.md))
 3. Keymend opens a setup window that shows exactly where to click for its two permissions.
 

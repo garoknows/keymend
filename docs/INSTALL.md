@@ -4,7 +4,7 @@ Keymend needs macOS 14 Sonoma or later.
 
 ## 1. Download and copy
 
-1. Download the latest `.dmg` from [GitHub Releases](https://github.com/garoknows/keymend/releases).
+1. Download [`Keymend-1.0.2.dmg`](https://github.com/garoknows/keymend/releases/tag/v1.0.2) from GitHub Releases.
 2. Open it and drag **Keymend** onto the **Applications** folder.
 
 ## 2. Open it
