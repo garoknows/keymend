@@ -543,8 +543,17 @@ struct SuggestionRuleTests {
     @Test func theRealCheckerOffersCompletionsWhenItCanBeReached() {
         // The spell service is out of reach in some restricted environments. CI runs this.
         guard spellServiceAvailable else { return }
+        // Just after the service starts it answers with nothing for a moment (seen on fresh CI
+        // machines). Completions must arrive soon after, or this fails.
         withRealService("Spell service") {
-            #expect(!AppleSpellChecker().completions(for: "hel").isEmpty)
+            let checker = AppleSpellChecker()
+            let end = Date().addingTimeInterval(15)
+            var offered = checker.completions(for: "hel")
+            while offered.isEmpty, Date() < end {
+                Thread.sleep(forTimeInterval: 0.25)
+                offered = checker.completions(for: "hel")
+            }
+            #expect(!offered.isEmpty)
         }
     }
 
