@@ -13,6 +13,10 @@ jobs:
   repeat-tests:
     runs-on: macos-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        machine: [1, 2, 3]
     env:
       KEYMEND_BUILD_DIR: ${{ github.workspace }}/.hang-check
       KEYMEND_TEST_LIMIT: "120"
@@ -37,7 +41,8 @@ jobs:
             echo "run $i: exit $CODE. $(grep -E 'Test run with' run.log | tail -1)"
             if [ "$CODE" != 0 ]; then
               FAILED=$((FAILED + 1))
-              tail -25 run.log
+              grep -E '✘|SERVICE HANG|TIMED OUT' run.log | grep -v 'Test run with' | cut -c1-400
+              tail -3 run.log
             fi
           done
           echo "Runs that failed or hung: $FAILED of 15"
