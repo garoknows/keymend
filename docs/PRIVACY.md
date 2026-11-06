@@ -2,20 +2,26 @@
 
 Keymend sees every key you type. That is what lets it fix typos, and it is also exactly what a keylogger does. This page explains what Keymend sees, what it does with it, and how you can check.
 
-This page describes the 1.1.0 pre-release. Keymend 1.0.2, still the main download, has no Careful Mode or Learning Dictionary.
+This page describes the 1.2.0 beta. Keymend 1.0.2, still the main download, has no Careful Mode, Learning Dictionary or word suggestions.
 
 ## What Keymend sees
 
 - The keys you press while a normal text field is active, one at a time.
-- Mouse clicks (only that a click happened, not where), so it can forget the current word.
+- Mouse clicks, so it can forget the current word. Only while the suggestion bar is showing, it also checks whether the click landed on the bar. It doesn't keep the position.
 - Which app is in front, so it can stay off in apps on your skip list.
+- While the suggestion bar is showing: the position and size of the front window, to place the bar. Never its title or contents.
+
+## What it can do to your keys
+
+Normally Keymend only watches keys and can't stop or change them. While the suggestion bar is showing, an active event tap can block the pick keys, Option+1, 2, 3 and 4 by default, from reaching your app. Only a pick key for a choice the bar is showing is blocked, along with that key's repeat and release. Every other key passes through unchanged, and the tap is removed when the bar goes away. `scripts/check-privacy.sh` fails if an active tap appears anywhere else in the code.
 
 ## What it keeps
 
 | Kept | Where | For how long |
 | --- | --- | --- |
 | The word you are typing right now (at most about 40 characters) | Memory only | Until the word ends, you click, switch apps, or pause |
-| Words you undid this session | Memory only | Until you quit Keymend |
+| Words you undid this session, or picked as typed from the suggestion bar | Memory only | Until you quit Keymend |
+| The word and its completions, while the suggestion bar shows them | Memory only, and on screen in the bar | Until the bar goes away |
 | With Learning on: the last finished word | Memory only | About 5 seconds, or until you click, switch apps or pause |
 | With Learning on: learned words (see below) | One encrypted file in its sandbox container | Until you delete them, or 90 days unseen if never made active |
 | Your settings: on/off, skip list, never-correct words | The app's own settings file in its sandbox | Until you change them |

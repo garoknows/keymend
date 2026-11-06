@@ -39,7 +39,18 @@ else pass "No third-party packages"; fi
 if grep -rn -i -E 'analytics|telemetry|crashlytics|sentry|sparkle' "${SRC[@]}" >/dev/null; then
   bad "Analytics or updater code found"
 else pass "No analytics, crash reporters or auto-updater"; fi
-ALLOWED='Keys\.(enabled|skipList|carefulList|neverCorrect|fixCount|setupShown|paused|excluded)'
+# Exactly one tap may stop keys, and it must stay behind the permission watchdog.
+ACTIVE=$(grep -rln -E 'options: *\.defaultTap' "${SRC[@]}")
+if [ "$ACTIVE" = "$ROOT/Packages/KeymendCore/Sources/KeymendCore/PickKeyTap.swift" ] && [ "$(grep -rn -E 'options: *\.defaultTap' "${SRC[@]}" | wc -l | tr -d ' ')" = "1" ]; then
+  pass "The only tap that can stop a key is the pick-key tap"
+else bad "An active event tap exists outside PickKeyTap.swift: $ACTIVE"; fi
+if grep -rn -E 'AXUIElement|AXIsProcessTrusted|kAXBoundsForRange|kAXFocused' "${SRC[@]}" >/dev/null; then
+  bad "Accessibility API that reads other apps found"
+else pass "No Accessibility API that reads other apps"; fi
+if grep -rn -E 'kCGWindowName|CGWindowListCreateImage|SCScreenshot|ScreenCaptureKit' "${SRC[@]}" >/dev/null; then
+  bad "Code that reads window titles or screen contents found"
+else pass "No code that reads window titles or screen contents"; fi
+ALLOWED='Keys\.(enabled|skipList|carefulList|neverCorrect|fixCount|setupShown|paused|excluded|suggestionsEnabled|pickModifier)'
 if grep -rn -E 'defaults\.set\(' "${SRC[@]}" | grep -v -E "$ALLOWED" >/dev/null; then
   bad "UserDefaults stores something other than settings:"; grep -rn -E 'defaults\.set\(' "${SRC[@]}" | grep -v -E "$ALLOWED"
 else pass "UserDefaults holds only settings and the fix count"; fi

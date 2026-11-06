@@ -18,6 +18,15 @@ final class AppModel: ObservableObject {
     @Published private(set) var neverCorrect: NeverCorrectList
     @Published private(set) var fixCount = DailyFixCount()
     @Published var launchAtLogin: Bool = false
+    @Published var suggestionsEnabled: Bool { didSet { defaults.set(suggestionsEnabled, forKey: Keys.suggestionsEnabled); applyState() } }
+    @Published var pickModifier: PickModifier {
+        didSet {
+            defaults.set(pickModifier.rawValue, forKey: Keys.pickModifier)
+            bridge.pickKeys = PickKeys(modifier: pickModifier)
+        }
+    }
+    /// True when macOS refused the tap for the pick keys. The bar still works by clicking.
+    @Published private(set) var pickKeysUnavailable = false
 
     // Live state.
     @Published private(set) var canListen = KeyEventTap.hasPermission
@@ -43,6 +52,9 @@ final class AppModel: ObservableObject {
     private let output = SystemKeyOutput()
     private let bridge: KeyboardBridge
     private let tap: KeyEventTap
+    private let pickBackend: CGPickTapBackend
+    private let pickTap: PickTapController
+    private var barPanel: SuggestionBarPanel?
     let learning: LearningModel
     private var timer: Timer?
     private var hotKeyRef: EventHotKeyRef?
@@ -55,11 +67,15 @@ final class AppModel: ObservableObject {
         static let neverCorrect = "neverCorrectWords"
         static let fixCount = "fixCount"
         static let setupShown = "setupShown"
+        static let suggestionsEnabled = "suggestionsEnabled"
+        static let pickModifier = "suggestionPickModifier"
     }
 
     private init() {
-        defaults.register(defaults: [Keys.enabled: true, Keys.skipList: DefaultSkipList.bundleIDs, Keys.carefulList: DefaultCarefulList.bundleIDs])
+        defaults.register(defaults: [Keys.enabled: true, Keys.skipList: DefaultSkipList.bundleIDs, Keys.carefulList: DefaultCarefulList.bundleIDs, Keys.suggestionsEnabled: true])
         isEnabled = defaults.bool(forKey: Keys.enabled)
+        suggestionsEnabled = defaults.bool(forKey: Keys.suggestionsEnabled)
+        pickModifier = defaults.string(forKey: Keys.pickModifier).flatMap(PickModifier.init(rawValue:)) ?? .option
         skipList = defaults.stringArray(forKey: Keys.skipList) ?? DefaultSkipList.bundleIDs
         carefulList = defaults.stringArray(forKey: Keys.carefulList) ?? DefaultCarefulList.bundleIDs
         neverCorrect = NeverCorrectList(words: defaults.stringArray(forKey: Keys.neverCorrect) ?? [])
@@ -71,11 +87,30 @@ final class AppModel: ObservableObject {
         hooks.didFix = { Task { @MainActor in AppModel.shared.recordFix() } }
         hooks.didUndo = { Task { @MainActor in AppModel.shared.recordUndo() } }
         hooks.didLearn = { event, verdict in Task { @MainActor in AppModel.shared.learning.record(event, verdict: verdict) } }
+        // In order, so a hide can't overtake the show before it.
+        hooks.didChangeSuggestions = { bar in
+            DispatchQueue.main.async { MainActor.assumeIsolated { AppModel.shared.showSuggestions(bar) } }
+        }
         output.setLayout(KeyLayoutMap.current())
-        bridge = KeyboardBridge(output: output, checker: TimeLimitedSpellChecker(checker), hooks: hooks)
+        let bridge = KeyboardBridge(output: output, checker: TimeLimitedSpellChecker(checker), hooks: hooks)
+        self.bridge = bridge
         tap = KeyEventTap(bridge: bridge)
+        let backend = CGPickTapBackend(bridge: bridge)
+        let pickTap = PickTapController(
+            backend: backend,
+            hasPermission: { CGPickTapBackend.hasPermissions },
+            keyHeld: { bridge.isHoldingPickKey }
+        )
+        pickTap.onStopped = { bridge.pickTapDidStop() }
+        // These run inside the tap's callback, which must finish before its tap is taken down.
+        backend.onKeyReleased = { DispatchQueue.global(qos: .userInitiated).async { pickTap.pickKeyReleased() } }
+        // macOS turning the tap off is a reason to stop, not to turn it back on.
+        backend.onDisabled = { DispatchQueue.global(qos: .userInitiated).async { pickTap.stopForSafety() } }
+        pickBackend = backend
+        self.pickTap = pickTap
         learning = LearningModel(bridge: bridge, defaults: defaults)
         bridge.neverCorrect = neverCorrect
+        bridge.pickKeys = PickKeys(modifier: pickModifier)
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
@@ -258,6 +293,27 @@ final class AppModel: ObservableObject {
         // Nothing typed in Keymend's own windows is learned, including its search box.
         let keymendIsInFront = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Bundle.main.bundleIdentifier
         learning.frontmostAppChanged(keymendIsInFront ? nil : currentApp?.bundleIdentifier)
+        bridge.suggestionsAllowed = suggestionsEnabled && currentAppMode == .on && !keymendIsInFront
+    }
+
+    // MARK: Suggestion bar
+
+    private func showSuggestions(_ bar: SuggestionBar?) {
+        if barPanel == nil {
+            let bridge = self.bridge
+            barPanel = SuggestionBarPanel(
+                onPick: { slot, generation in bridge.pick(slot: slot, generation: generation) },
+                onFrameChange: { bridge.barFrame = $0 }
+            )
+        }
+        barPanel?.show(bar, frontApp: currentApp?.processIdentifier)
+        if bar == nil {
+            pickTap.barDidHide()
+        } else {
+            pickTap.barDidShow()
+            let unavailable = pickTap.lastStartFailed
+            if unavailable != pickKeysUnavailable { pickKeysUnavailable = unavailable }
+        }
     }
 
     private func updateFrontmostApp(_ app: NSRunningApplication?) {
@@ -287,6 +343,15 @@ final class AppModel: ObservableObject {
             MainActor.assumeIsolated {
                 AppModel.shared.output.setLayout(KeyLayoutMap.current())
                 AppModel.shared.bridge.reset()
+            }
+        })
+        // Someone changed an Accessibility switch: stop the active tap first, then look.
+        observers.append(DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("com.apple.accessibility.api"), object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                AppModel.shared.pickTap.stopForSafety()
+                AppModel.shared.refreshPermissions()
             }
         })
         observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { _ in

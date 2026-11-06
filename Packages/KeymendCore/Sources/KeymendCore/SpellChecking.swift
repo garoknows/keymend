@@ -7,9 +7,13 @@ public protocol SpellChecking: Sendable {
     func verdict(for word: String) -> SpellVerdict
     /// True when the word is in the Mac's own "Learn Spelling" list.
     func hasLearnedWord(_ word: String) -> Bool
+    /// Words that `partial` could become. Empty if there are none, or no time to find them.
+    func completions(for partial: String) -> [String]
 }
 
 extension SpellChecking {
+    public func completions(for partial: String) -> [String] { [] }
+
     /// A confident correction for `word`, or nil to leave it alone.
     public func correction(for word: String) -> String? {
         if case .fix(let s) = verdict(for: word) { return s }
@@ -50,6 +54,13 @@ public final class AppleSpellChecker: SpellChecking, @unchecked Sendable {
         return NSSpellChecker.shared.hasLearnedWord(word)
     }
 
+    public func completions(for partial: String) -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        let checker = NSSpellChecker.shared
+        let range = NSRange(location: 0, length: (partial as NSString).length)
+        return checker.completions(forPartialWordRange: range, in: partial, language: checker.language(), inSpellDocumentWithTag: tag) ?? []
+    }
+
     /// Adds a word to the Mac's shared "Learn Spelling" list.
     public func learnWord(_ word: String) {
         lock.lock(); defer { lock.unlock() }
@@ -76,7 +87,7 @@ public final class TimeLimitedSpellChecker: SpellChecking, @unchecked Sendable {
 
     /// Running out of time counts as `.unknown`: nothing gets fixed.
     public func verdict(for word: String) -> SpellVerdict {
-        let box = ResultBox()
+        let box = ResultBox<SpellVerdict>()
         let done = DispatchSemaphore(value: 0)
         let base = self.base
         queue.async {
@@ -91,10 +102,23 @@ public final class TimeLimitedSpellChecker: SpellChecking, @unchecked Sendable {
         base.hasLearnedWord(word)
     }
 
-    private final class ResultBox: @unchecked Sendable {
+    /// Running out of time means no completions: the bar shows only the word as typed.
+    public func completions(for partial: String) -> [String] {
+        let box = ResultBox<[String]>()
+        let done = DispatchSemaphore(value: 0)
+        let base = self.base
+        queue.async {
+            box.set(base.completions(for: partial))
+            done.signal()
+        }
+        guard done.wait(timeout: .now() + limit) == .success else { return [] }
+        return box.get() ?? []
+    }
+
+    private final class ResultBox<Value: Sendable>: @unchecked Sendable {
         private let lock = NSLock()
-        private var value: SpellVerdict?
-        func set(_ v: SpellVerdict) { lock.lock(); value = v; lock.unlock() }
-        func get() -> SpellVerdict? { lock.lock(); defer { lock.unlock() }; return value }
+        private var value: Value?
+        func set(_ v: Value) { lock.lock(); value = v; lock.unlock() }
+        func get() -> Value? { lock.lock(); defer { lock.unlock() }; return value }
     }
 }

@@ -40,6 +40,21 @@ struct GeneralTab: View {
                     Text("⌃⌥K").font(.system(.body, design: .rounded)).foregroundStyle(.secondary)
                 }
             }
+            Section("Suggestions") {
+                Toggle("Show word suggestions as I type", isOn: $model.suggestionsEnabled)
+                Picker("Pick with", selection: $model.pickModifier) {
+                    ForEach(PickModifier.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .disabled(!model.suggestionsEnabled)
+                Text("While the bar is showing, these keys pick a word instead of reaching your app. If Option plus a number types something you need, like # or @, choose another.")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if model.pickKeysUnavailable {
+                    Text("macOS isn't letting Keymend use the pick keys right now, so they type as usual. You can still click a word in the bar.")
+                        .font(.callout).foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
             Section("Permissions") {
                 PermissionRow(title: "Input Monitoring", detail: "See the keys you type", granted: model.canListen)
                 PermissionRow(title: "Typing fixes", detail: "Listed under Accessibility", granted: model.canPost)
