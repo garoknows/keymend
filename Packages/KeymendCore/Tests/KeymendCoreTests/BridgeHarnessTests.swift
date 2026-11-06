@@ -324,7 +324,7 @@ struct BridgeHarnessTests {
     @MainActor
     @Test func readsTheRealKeyboardLayout() throws {
         // Whatever layout this Mac uses, letters must be on different keys and capitals need Shift.
-        let layout = try #require(KeyLayoutMap.current())
+        let layout = try #require(withRealService("Keyboard layout service") { KeyLayoutMap.current() })
         let t = try #require(layout.stroke(for: "t"))
         let h = try #require(layout.stroke(for: "h"))
         let capital = try #require(layout.stroke(for: "T"))

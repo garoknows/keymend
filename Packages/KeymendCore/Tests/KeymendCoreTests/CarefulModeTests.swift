@@ -350,22 +350,22 @@ struct AppModeTests {
 /// protected lines and an obvious typo are checked.
 @Suite("Careful mode with the real spell checker", .serialized)
 struct CarefulRealCheckerTests {
-    private static var available: Bool {
-        NSSpellChecker.shared.checkSpelling(of: "teh", startingAt: 0).location != NSNotFound
-    }
-
     @Test func protectedLinesStayExactlyAsTyped() {
-        guard Self.available else { return }
+        guard spellServiceAvailable else { return }
         let lines = Corpus.listedCommands + Corpus.lineStartSymbols + Corpus.codeWordsMidLine + Corpus.quoted + Corpus.code + Corpus.unknownFirstWord
-        for line in lines {
-            expectUntouched(line, checker: AppleSpellChecker())
+        withRealService("Spell service", seconds: 120) {
+            for line in lines {
+                expectUntouched(line, checker: AppleSpellChecker())
+            }
         }
     }
 
     @Test func plainLanguageIsFixed() {
-        guard Self.available else { return }
-        let h = carefulHarness(AppleSpellChecker())
-        h.type("can you fix the teh ")
-        #expect(h.field.text == "can you fix the the ")
+        guard spellServiceAvailable else { return }
+        withRealService("Spell service") {
+            let h = carefulHarness(AppleSpellChecker())
+            h.type("can you fix the teh ")
+            #expect(h.field.text == "can you fix the the ")
+        }
     }
 }

@@ -37,6 +37,7 @@ jobs:
           echo "bundle=${V%%-*}" >> "$GITHUB_OUTPUT"
 
       - name: Tests
+        timeout-minutes: 10
         run: swift test --package-path Packages/KeymendCore
 
       - name: Import Developer ID certificate

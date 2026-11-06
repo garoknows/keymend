@@ -128,25 +128,28 @@ struct SettingsTests {
 
 /// The Mac's spell service runs as a separate system process. Some restricted shells
 /// (for example a sandboxed build agent) cannot reach it; these tests then skip.
-let spellServiceAvailable: Bool = {
-    let miss = NSSpellChecker.shared.checkSpelling(of: "teh", startingAt: 0)
-    return miss.location != NSNotFound
-}()
+let spellServiceAvailable: Bool = withRealService("Spell service") {
+    NSSpellChecker.shared.checkSpelling(of: "teh", startingAt: 0).location != NSNotFound
+}
 
 @Suite("Apple spell checker (on-device)")
 struct AppleSpellCheckerTests {
     @Test(.enabled(if: spellServiceAvailable, "macOS spell service not reachable from this process"))
     func fixesCommonTypos() {
-        let c = AppleSpellChecker()
-        #expect(c.correction(for: "teh") == "the")
-        #expect(c.correction(for: "recieve") == "receive")
+        withRealService("Spell service") {
+            let c = AppleSpellChecker()
+            #expect(c.correction(for: "teh") == "the")
+            #expect(c.correction(for: "recieve") == "receive")
+        }
     }
 
     @Test(.enabled(if: spellServiceAvailable, "macOS spell service not reachable from this process"))
     func leavesCorrectWordsAlone() {
-        let c = AppleSpellChecker()
-        for w in ["the", "receive", "keyboard", "quietly"] {
-            #expect(c.correction(for: w) == nil, "changed \(w)")
+        withRealService("Spell service") {
+            let c = AppleSpellChecker()
+            for w in ["the", "receive", "keyboard", "quietly"] {
+                #expect(c.correction(for: w) == nil, "changed \(w)")
+            }
         }
     }
 

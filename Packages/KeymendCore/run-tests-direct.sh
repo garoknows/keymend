@@ -20,4 +20,13 @@ SWIFT
 swiftc "${COMMON[@]}" -parse-as-library -I "$B" -L "$B" -lKeymendCore -module-name KeymendCoreTests \
   -Xlinker -rpath -Xlinker "$PLAT/Library/Frameworks" -Xlinker -rpath -Xlinker "$PLAT/usr/lib" \
   "$HERE"/Tests/KeymendCoreTests/*.swift "$B/runner.swift" -o "$B/keymend-core-tests"
-KEYMEND_TEST_DIR="$B" "$B/keymend-core-tests" "$@"
+# A run that hangs must fail, not wait forever. The alarm survives exec and kills the test process.
+LIMIT="${KEYMEND_TEST_LIMIT:-180}"
+set +e
+KEYMEND_TEST_DIR="$B" perl -e 'alarm shift; exec @ARGV or die "cannot run tests: $!\n"' "$LIMIT" "$B/keymend-core-tests" "$@"
+CODE=$?
+set -e
+if [ "$CODE" = 142 ]; then
+  echo "TIMED OUT: the tests were killed after ${LIMIT}s. A test that started and never passed or failed is hung." >&2
+fi
+exit "$CODE"
