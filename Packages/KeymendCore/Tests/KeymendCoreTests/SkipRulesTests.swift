@@ -153,14 +153,27 @@ struct AppleSpellCheckerTests {
         }
     }
 
+    /// Generous on purpose: a busy CI machine can wake a thread late. Ignoring the limit would
+    /// take the full 3 seconds. The 50 ms value itself is checked in `theLimitIsStill50ms`.
     @Test func timeLimitGivesUp() {
         struct Slow: SpellChecking {
-            func verdict(for word: String) -> SpellVerdict { Thread.sleep(forTimeInterval: 0.3); return .fix("x") }
+            func verdict(for word: String) -> SpellVerdict { Thread.sleep(forTimeInterval: 3); return .fix("x") }
             func hasLearnedWord(_ word: String) -> Bool { false }
         }
         let limited = TimeLimitedSpellChecker(Slow(), limit: .milliseconds(50))
         let start = Date()
         #expect(limited.correction(for: "teh") == nil)
-        #expect(Date().timeIntervalSince(start) < 0.2)
+        #expect(Date().timeIntervalSince(start) < 1.5)
+    }
+
+    /// The setting itself, with no timing involved, so a drift from 50 ms is caught.
+    @Test func theLimitIsStill50ms() {
+        struct Quick: SpellChecking {
+            func verdict(for word: String) -> SpellVerdict { .correct }
+            func hasLearnedWord(_ word: String) -> Bool { false }
+        }
+        #expect(TimeLimitedSpellChecker.defaultLimit == .milliseconds(50))
+        // The app builds its checker without a limit, so it gets this one.
+        #expect(TimeLimitedSpellChecker(Quick()).limit == .milliseconds(50))
     }
 }

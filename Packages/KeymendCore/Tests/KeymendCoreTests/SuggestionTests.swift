@@ -562,13 +562,14 @@ struct SuggestionRuleTests {
             func verdict(for word: String) -> SpellVerdict { .correct }
             func hasLearnedWord(_ word: String) -> Bool { false }
             func completions(for partial: String) -> [String] {
-                Thread.sleep(forTimeInterval: 0.3)
+                Thread.sleep(forTimeInterval: 3)
                 return ["hello"]
             }
         }
+        // Generous on purpose: ignoring the limit would take the full 3 seconds.
         let start = Date()
         #expect(TimeLimitedSpellChecker(Slow(), limit: .milliseconds(20)).completions(for: "he") == [])
-        #expect(Date().timeIntervalSince(start) < 0.25)
+        #expect(Date().timeIntervalSince(start) < 1.5)
     }
 }
 

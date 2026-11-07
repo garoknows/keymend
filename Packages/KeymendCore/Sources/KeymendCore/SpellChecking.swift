@@ -77,10 +77,13 @@ public final class AppleSpellChecker: SpellChecking, @unchecked Sendable {
 /// Wraps another checker and gives up when it takes longer than `limit`, so typing is never slowed.
 public final class TimeLimitedSpellChecker: SpellChecking, @unchecked Sendable {
     private let base: SpellChecking
-    private let limit: DispatchTimeInterval
+    /// How long the spell checker gets before Keymend gives up, so a slow answer can't hold up typing.
+    public static let defaultLimit: DispatchTimeInterval = .milliseconds(50)
+
+    public let limit: DispatchTimeInterval
     private let queue = DispatchQueue(label: "keymend.spellcheck", qos: .userInitiated)
 
-    public init(_ base: SpellChecking, limit: DispatchTimeInterval = .milliseconds(50)) {
+    public init(_ base: SpellChecking, limit: DispatchTimeInterval = TimeLimitedSpellChecker.defaultLimit) {
         self.base = base
         self.limit = limit
     }
