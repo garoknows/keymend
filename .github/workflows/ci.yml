@@ -20,6 +20,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0   # the secret scan needs the commits a pull request adds
+          persist-credentials: false
 
       - name: Show toolchain
         run: |
@@ -35,10 +36,16 @@ jobs:
           scripts/compile-icon.sh
           if [ -f App/Resources/Generated/AppIcon.icns ]; then cp App/Resources/Generated/AppIcon.icns App/Resources/AppIcon.icns; fi
 
-      - name: Generate the Xcode project from project.yml
+      - name: Generate the Xcode project from project.yml (XcodeGen pinned, checksum verified)
+        env:
+          XCODEGEN_VERSION: "2.46.0"
+          XCODEGEN_SHA256: "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806"
         run: |
-          brew install xcodegen
-          xcodegen generate
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          "$RUNNER_TEMP/xcodegen/bin/xcodegen" generate
 
       - name: Build app (Release, ad hoc signed)
         run: |
@@ -57,6 +64,6 @@ jobs:
         run: scripts/check-privacy.sh build.nosync/dd/Build/Products/Release/Keymend.app
 
       - name: Secret scan
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
