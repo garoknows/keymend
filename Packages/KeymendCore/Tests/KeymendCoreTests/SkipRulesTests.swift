@@ -73,7 +73,11 @@ struct SkipRulesTests {
             "TEH ", "teh2 ", "https://teh.com ", "teh@exmaple.com ", "@teh ", "#teh ",
             "~/teh ", "`teh` ", "iTeh ", "teh_teh ",
         ]
-        for s in samples { #expect(typed(s) == s, "changed: \(s)") }
+        for s in samples {
+            #expect(typed(s) == s, "changed: \(s)")
+            // The fake checker has no fix for most of these, so also check none even reach it.
+            #expect(wordsCheckedFixingEverything(s).isEmpty, "checked: \(s)")
+        }
     }
 }
 
@@ -132,6 +136,18 @@ let spellServiceAvailable: Bool = {
     let miss = NSSpellChecker.shared.checkSpelling(of: "teh", startingAt: 0)
     return miss.location != NSNotFound
 }()
+
+/// The real-spell-checker tests skip themselves where the service can't be reached. On CI that
+/// would hide them, so CI fails here instead. Waits a little, since the service starts lazily.
+@Test func spellServiceIsReachableOnCI() {
+    guard ProcessInfo.processInfo.environment["CI"] != nil else { return }
+    var ok = spellServiceAvailable
+    for _ in 0..<30 where !ok {
+        Thread.sleep(forTimeInterval: 0.5)
+        ok = NSSpellChecker.shared.checkSpelling(of: "teh", startingAt: 0).location != NSNotFound
+    }
+    #expect(ok, "the real spell checker tests would be skipped on CI")
+}
 
 @Suite("Apple spell checker (on-device)")
 struct AppleSpellCheckerTests {

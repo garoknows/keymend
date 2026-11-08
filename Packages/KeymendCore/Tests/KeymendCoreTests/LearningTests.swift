@@ -227,12 +227,18 @@ struct LearningStoreTests {
         #expect(store.items.isEmpty)
     }
 
-    @Test(arguments: ["me@example.com", "@handle", "foo.bar", "src/main", "API", "camelCase", "v2", "a b"])
-    func codeShapesAndHandlesAreNeverCaptured(_ word: String) {
+    /// Each code shape is paired with a close plain spelling, so only the "plain words only" rule
+    /// can keep it out (a far-off pair would be refused for not being a close spelling).
+    @Test(arguments: [("me@example.com", "meexamplecom"), ("@handle", "handle"), ("foo.bar", "foobar"), ("src/main", "srcmain"),
+                      ("API", "apt"), ("camelCase", "camelcase"), ("v2", "va"), ("a b", "ab")])
+    func codeShapesAndHandlesAreNeverCaptured(_ pair: (String, String)) {
+        let (word, plain) = pair
+        #expect(LearningRules.isCloseSpelling(word, plain))
         var store = LearningStore()
         store.record(.keptWord(word), day: "2026-01-01", verdict: Self.flagged)
-        store.record(.corrected(typed: word, corrected: "word"), day: "2026-01-01", verdict: Self.flagged)
-        store.record(.undone(typed: word, replacement: "word"), day: "2026-01-01", verdict: Self.flagged)
+        store.record(.corrected(typed: word, corrected: plain), day: "2026-01-01", verdict: Self.flagged)
+        store.record(.undone(typed: word, replacement: plain), day: "2026-01-01", verdict: Self.flagged)
+        store.record(.corrected(typed: plain, corrected: word), day: "2026-01-01", verdict: Self.flagged)
         #expect(store.items.isEmpty)
     }
 

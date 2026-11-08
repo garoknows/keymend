@@ -122,6 +122,25 @@ struct CarefulCommandTests {
         h.type("the teh\nls\ngit psuh\n")
         #expect(h.field.text == "the teh\nls\ngit psuh\n")
         #expect(h.field.postedEventCount == 0)
+        // Return never fixes, so the lines above can't fail by themselves. What matters is that a
+        // command ended by Return turns the next line off, even when it reads like prose.
+        let h2 = carefulHarness()
+        h2.type("ls\nthe quick brown recieve \n")
+        #expect(h2.field.text == "ls\nthe quick brown recieve \n")
+        #expect(h2.field.postedEventCount == 0)
+    }
+
+    /// A typo only becomes fixable after two prose words, so each command word is followed by
+    /// two of them here: only the command rule keeps these lines as typed.
+    @Test(arguments: ["git", "ls", "swift", "npm", "python", "sudo", "brew", "for", "def", "import", "from", "select", "if", "let", "const"])
+    func aCommandFirstWordProtectsTheWholeLine(_ command: String) {
+        expectUntouched("\(command) the quick recieve")
+    }
+
+    @Test func theSameLineWithAnOrdinaryFirstWordIsFixed() {
+        let h = carefulHarness()
+        h.type("now the quick recieve ")
+        #expect(h.field.postedEventCount > 0)
     }
 
     @Test func returnNeverFixes() {
@@ -196,7 +215,9 @@ struct CarefulLostTrackTests {
         h.type("the quick brown ")
         h.bridge.receive(RawKeyEvent(kind: .keyDown, keyCode: 0, characters: "x", isFromAnotherProgram: true))
         h.bridge.drain()
-        h.type("teh ")
+        // The leading space ends "x" as a word of its own if it was wrongly counted as typing,
+        // and then "teh" would be fixed (the line already has three prose words).
+        h.type(" teh ")
         #expect(h.field.postedEventCount == 0)
     }
 
@@ -206,10 +227,14 @@ struct CarefulLostTrackTests {
     }
 
     @Test func keysFromAnotherProgramStillWorkOutsideCareful() {
+        // The posted "h" finishes the word. If it were ignored, the engine would hold "te".
         let h = Harness()
-        h.bridge.receive(RawKeyEvent(kind: .keyDown, keyCode: 0, characters: "a", isFromAnotherProgram: true))
+        h.type("te")
+        h.field.apply(keyEvent("h"))
+        h.bridge.receive(RawKeyEvent(kind: .keyDown, keyCode: 4, characters: "h", isFromAnotherProgram: true))
         h.bridge.drain()
-        h.type(" teh ")
+        h.type(" ")
+        #expect(h.field.text == "the ")
         #expect(h.fixes.value == 1)
     }
 
@@ -350,20 +375,16 @@ struct AppModeTests {
 /// protected lines and an obvious typo are checked.
 @Suite("Careful mode with the real spell checker", .serialized)
 struct CarefulRealCheckerTests {
-    private static var available: Bool {
-        NSSpellChecker.shared.checkSpelling(of: "teh", startingAt: 0).location != NSNotFound
-    }
-
-    @Test func protectedLinesStayExactlyAsTyped() {
-        guard Self.available else { return }
+    @Test(.enabled(if: spellServiceAvailable, "macOS spell service not reachable from this process"))
+    func protectedLinesStayExactlyAsTyped() {
         let lines = Corpus.listedCommands + Corpus.lineStartSymbols + Corpus.codeWordsMidLine + Corpus.quoted + Corpus.code + Corpus.unknownFirstWord
         for line in lines {
             expectUntouched(line, checker: AppleSpellChecker())
         }
     }
 
-    @Test func plainLanguageIsFixed() {
-        guard Self.available else { return }
+    @Test(.enabled(if: spellServiceAvailable, "macOS spell service not reachable from this process"))
+    func plainLanguageIsFixed() {
         let h = carefulHarness(AppleSpellChecker())
         h.type("can you fix the teh ")
         #expect(h.field.text == "can you fix the the ")

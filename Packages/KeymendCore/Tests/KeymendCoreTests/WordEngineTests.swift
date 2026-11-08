@@ -49,6 +49,16 @@ func typed(_ s: String) -> String {
     return t.screen
 }
 
+/// Types `s` with a checker that wants to change every word, and returns the words it was asked
+/// about. A word the engine skips must never reach the checker, whatever the checker would say.
+func wordsCheckedFixingEverything(_ s: String) -> [String] {
+    var e = WordEngine()
+    e.handle(.newline, check: { _ in nil })
+    var asked: [String] = []
+    for ch in s { e.handle(.text(String(ch)), check: { asked.append($0); return "zzz" }) }
+    return asked
+}
+
 @Suite("Word engine")
 struct WordEngineTests {
     @Test func fixesOnSpace() {
@@ -73,6 +83,7 @@ struct WordEngineTests {
         // A dot might be part of a domain or file name, so wait for the space.
         #expect(typed("teh.") == "teh.")
         #expect(typed("teh.com ") == "teh.com ")
+        #expect(wordsCheckedFixingEverything("teh.com ").isEmpty)
     }
 
     @Test func keepsCapitalization() {
@@ -196,6 +207,7 @@ struct WordEngineTests {
 
     @Test func nothingInsideBackticks() {
         #expect(typed("run `teh` now ") == "run `teh` now ")
+        #expect(wordsCheckedFixingEverything("run `teh` now ") == ["run", "now"])
         #expect(typed("run `foo teh bar` teh ") == "run `foo teh bar` the ")
     }
 
