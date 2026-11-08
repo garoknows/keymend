@@ -374,3 +374,45 @@ struct ImportTests {
         #expect(LearningVault.allowedRounds.contains(LearningVault.rounds))
     }
 }
+
+/// The Mac's shared "Learn Spelling" list, in memory.
+private final class FakeSpellingList: SystemSpellingList, @unchecked Sendable {
+    var learned: Set<String>
+    var calls: [String] = []
+    init(_ learned: Set<String> = []) { self.learned = learned }
+    func hasLearnedWord(_ word: String) -> Bool { learned.contains(word) }
+    func learnWord(_ word: String) { calls.append("learn \(word)"); learned.insert(word) }
+    func unlearnWord(_ word: String) { calls.append("unlearn \(word)"); learned.remove(word) }
+}
+
+@Suite("Review 2026-11, finding 10: only unlearn what Keymend taught")
+struct TaughtSpellingTests {
+    @Test func aWordTheUserLearnedBeforeKeymendStaysLearned() {
+        let mac = FakeSpellingList(["Garoverse"])
+        var taught = TaughtSpellings()
+        taught.add("Garoverse", to: mac)
+        taught.remove("Garoverse", from: mac)
+        #expect(mac.learned.contains("Garoverse"))
+        #expect(mac.calls.isEmpty)
+    }
+
+    @Test func aWordKeymendTaughtIsUnlearnedWhenRemoved() {
+        let mac = FakeSpellingList()
+        var taught = TaughtSpellings()
+        taught.add("  Zorblat ", to: mac)
+        #expect(mac.learned == ["Zorblat"])
+        // The never-correct list ignores case, so removal does too.
+        taught.remove("zorblat", from: mac)
+        #expect(mac.learned.isEmpty)
+        #expect(taught.words.isEmpty)
+    }
+
+    @Test func theRecordSurvivesARestart() {
+        let mac = FakeSpellingList()
+        var taught = TaughtSpellings()
+        taught.add("Zorblat", to: mac)
+        var reloaded = TaughtSpellings(words: taught.words)
+        reloaded.remove("Zorblat", from: mac)
+        #expect(mac.learned.isEmpty)
+    }
+}

@@ -16,6 +16,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var skipList: [String]
     @Published private(set) var carefulList: [String]
     @Published private(set) var neverCorrect: NeverCorrectList
+    /// The never-correct words Keymend added to the Mac's "Learn Spelling" list itself.
+    private var taughtSpellings: TaughtSpellings
     @Published private(set) var fixCount = DailyFixCount()
     @Published var launchAtLogin: Bool = false
 
@@ -60,6 +62,7 @@ final class AppModel: ObservableObject {
         static let skipList = "skipBundleIDs"
         static let carefulList = "carefulBundleIDs"
         static let neverCorrect = "neverCorrectWords"
+        static let taughtSpellings = "neverCorrectTaughtToMac"
         static let fixCount = "fixCount"
         static let setupShown = "setupShown"
     }
@@ -70,6 +73,7 @@ final class AppModel: ObservableObject {
         skipList = defaults.stringArray(forKey: Keys.skipList) ?? DefaultSkipList.bundleIDs
         carefulList = defaults.stringArray(forKey: Keys.carefulList) ?? DefaultCarefulList.bundleIDs
         neverCorrect = NeverCorrectList(words: defaults.stringArray(forKey: Keys.neverCorrect) ?? [])
+        taughtSpellings = TaughtSpellings(words: defaults.stringArray(forKey: Keys.taughtSpellings) ?? [])
         if let data = defaults.data(forKey: Keys.fixCount), let c = try? JSONDecoder().decode(DailyFixCount.self, from: data) {
             fixCount = c
         }
@@ -212,19 +216,21 @@ final class AppModel: ObservableObject {
     func addNeverCorrect(_ word: String) -> Bool {
         guard neverCorrect.add(word) else { return false }
         // Shared with the Mac's own "Learn Spelling" list, so other apps stop flagging it too.
-        checker.learnWord(word.trimmingCharacters(in: .whitespacesAndNewlines))
+        taughtSpellings.add(word, to: checker)
         saveNeverCorrect()
         return true
     }
 
     func removeNeverCorrect(_ word: String) {
         neverCorrect.remove(word)
-        checker.unlearnWord(word)
+        // Only taken off the Mac's list if Keymend put it there.
+        taughtSpellings.remove(word, from: checker)
         saveNeverCorrect()
     }
 
     private func saveNeverCorrect() {
         defaults.set(neverCorrect.words, forKey: Keys.neverCorrect)
+        defaults.set(taughtSpellings.words, forKey: Keys.taughtSpellings)
         bridge.neverCorrect = neverCorrect
     }
 

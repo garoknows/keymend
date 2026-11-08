@@ -39,7 +39,7 @@ else pass "No third-party packages"; fi
 if grep -rn -i -E 'analytics|telemetry|crashlytics|sentry|sparkle' "${SRC[@]}" >/dev/null; then
   bad "Analytics or updater code found"
 else pass "No analytics, crash reporters or auto-updater"; fi
-ALLOWED='Keys\.(enabled|skipList|carefulList|neverCorrect|fixCount|setupShown|paused|excluded)'
+ALLOWED='Keys\.(enabled|skipList|carefulList|neverCorrect|taughtSpellings|fixCount|setupShown|paused|excluded)'
 if grep -rn -E 'defaults\.set\(' "${SRC[@]}" | grep -v -E "$ALLOWED" >/dev/null; then
   bad "UserDefaults stores something other than settings:"; grep -rn -E 'defaults\.set\(' "${SRC[@]}" | grep -v -E "$ALLOWED"
 else pass "UserDefaults holds only settings and the fix count"; fi
