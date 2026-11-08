@@ -10,21 +10,33 @@ on:
         description: Version to stamp into the dry-run build
         default: "0.0.0"
 
+# Read-only by default. Only the publish job, which never sees the signing secrets, can write.
 permissions:
-  contents: write
+  contents: read
+
+env:
+  # XcodeGen is downloaded at this exact version and checked against this checksum.
+  XCODEGEN_VERSION: "2.46.0"
+  XCODEGEN_SHA256: "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806"
 
 jobs:
-  release:
+  build:
     runs-on: macos-latest
     timeout-minutes: 150
+    permissions:
+      contents: read
     env:
       APP_NAME: Keymend
       # Signing and notarizing turn on automatically when these repository secrets exist.
       # Without them the release is ad hoc signed (first launch needs "Open Anyway").
       HAS_SIGNING: ${{ secrets.MACOS_CERTIFICATE_P12 != '' && secrets.APPLE_TEAM_ID != '' }}
       HAS_NOTARY: ${{ secrets.APPLE_API_KEY_ID != '' && secrets.APPLE_API_ISSUER_ID != '' && secrets.APPLE_API_KEY_P8 != '' }}
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Version from tag
         id: v
@@ -32,10 +44,34 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then V="$INPUT_VERSION"; else V="${GITHUB_REF_NAME#v}"; fi
+          # Only a plain version number gets through, so nothing else can reach a shell command.
+          if ! printf '%s' "$V" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "::error::Not a valid version number"
+            exit 1
+          fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      # Everything the job needs is installed here, before the signing key exists on this machine.
+      - name: Install XcodeGen (pinned, checksum verified)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
 
       - name: Tests
         run: swift test --package-path Packages/KeymendCore
+
+      - name: Compile the app icon (Icon Composer .icon to Assets.car + fallback .icns)
+        run: |
+          scripts/compile-icon.sh
+          if [ -f App/Resources/Generated/AppIcon.icns ]; then cp App/Resources/Generated/AppIcon.icns App/Resources/AppIcon.icns; fi
+
+      - name: Generate the Xcode project
+        run: |
+          xcodegen --version
+          xcodegen generate
 
       - name: Import Developer ID certificate
         if: env.HAS_SIGNING == 'true'
@@ -56,18 +92,13 @@ jobs:
           rm "$RUNNER_TEMP/cert.p12"
           sed "s/YOURTEAMID/$TEAM_ID/" Config/Signing.xcconfig.example > Config/Signing.xcconfig
 
-      - name: Compile the app icon (Icon Composer .icon to Assets.car + fallback .icns)
-        run: |
-          scripts/compile-icon.sh
-          if [ -f App/Resources/Generated/AppIcon.icns ]; then cp App/Resources/Generated/AppIcon.icns App/Resources/AppIcon.icns; fi
-
       - name: Build (Release)
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
         run: |
-          brew install xcodegen
-          xcodegen generate
           xcodebuild -project Keymend.xcodeproj -scheme Keymend \
             -configuration Release -destination "generic/platform=macOS" \
-            -derivedDataPath build.nosync/dd MARKETING_VERSION="${{ steps.v.outputs.version }}" build
+            -derivedDataPath build.nosync/dd MARKETING_VERSION="$VERSION" build
           mkdir -p dist
           ditto "build.nosync/dd/Build/Products/Release/$APP_NAME.app" "dist/$APP_NAME.app"
           codesign --verify --deep --strict --verbose=2 "dist/$APP_NAME.app"
@@ -93,11 +124,12 @@ jobs:
           scripts/notarize.sh "$RUNNER_TEMP/notarize-app.zip" "dist/$APP_NAME.app"
 
       - name: Package DMG
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
         run: |
-          V="${{ steps.v.outputs.version }}"
-          scripts/make-dmg.sh "dist/$APP_NAME.app" "dist/Keymend-$V.dmg"
+          scripts/make-dmg.sh "dist/$APP_NAME.app" "dist/Keymend-$VERSION.dmg"
           if [ "$HAS_SIGNING" = "true" ]; then
-            codesign --sign "Developer ID Application" --timestamp "dist/Keymend-$V.dmg"
+            codesign --sign "Developer ID Application" --timestamp "dist/Keymend-$VERSION.dmg"
           fi
 
       - name: Notarize and staple the DMG
@@ -105,28 +137,66 @@ jobs:
         env:
           ASC_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          VERSION: ${{ steps.v.outputs.version }}
         run: |
           export ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
-          scripts/notarize.sh "dist/Keymend-${{ steps.v.outputs.version }}.dmg"
+          scripts/notarize.sh "dist/Keymend-$VERSION.dmg"
 
       - name: Verify Developer ID signature and notarization
         if: env.HAS_SIGNING == 'true' && env.HAS_NOTARY == 'true'
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
         run: |
-          V="${{ steps.v.outputs.version }}"
           codesign -dv --verbose=2 "dist/$APP_NAME.app" 2>&1 | grep -E "^Authority|^TeamIdentifier|flags="
-          codesign -dv --verbose=2 "dist/Keymend-$V.dmg" 2>&1 | grep -E "^Authority"
+          codesign -dv --verbose=2 "dist/Keymend-$VERSION.dmg" 2>&1 | grep -E "^Authority"
           spctl --assess --type execute --verbose=2 "dist/$APP_NAME.app"
-          spctl --assess --type open --context context:primary-signature --verbose=2 "dist/Keymend-$V.dmg"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "dist/Keymend-$VERSION.dmg"
           xcrun stapler validate "dist/$APP_NAME.app"
-          xcrun stapler validate "dist/Keymend-$V.dmg"
+          xcrun stapler validate "dist/Keymend-$VERSION.dmg"
 
       - name: Checksums
         run: (cd dist && shasum -a 256 *.dmg > SHA256SUMS.txt && cat SHA256SUMS.txt)
 
+      - name: Upload the DMG for the publish job
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dist
+          path: |
+            dist/*.dmg
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove the signing keychain and the notary key
+        if: always()
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          if [ -f "$KEYCHAIN" ]; then security delete-keychain "$KEYCHAIN" || rm -f "$KEYCHAIN"; fi
+          rm -f "$RUNNER_TEMP/AuthKey.p8" "$RUNNER_TEMP/cert.p12" Config/Signing.xcconfig
+
+  publish:
+    # A manual run is a dry run: it builds and checks, and never publishes.
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: macos-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Download the DMG from the build job
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dist
+          path: dist
+
       - name: Publish GitHub release (skipped if the release already exists)
-        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             echo "Release $GITHUB_REF_NAME already exists; leaving it as published."
@@ -136,4 +206,4 @@ jobs:
           PRERELEASE=""
           if head -n 1 docs/RELEASE_NOTES.md | grep -q '^\*\*Pre-release'; then PRERELEASE="--prerelease"; fi
           gh release create "$GITHUB_REF_NAME" dist/*.dmg dist/SHA256SUMS.txt $PRERELEASE \
-            --title "Keymend ${{ steps.v.outputs.version }}" --notes-file docs/RELEASE_NOTES.md
+            --title "Keymend $VERSION" --notes-file docs/RELEASE_NOTES.md

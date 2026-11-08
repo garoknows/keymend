@@ -100,16 +100,16 @@ public struct LearningStore: Codable, Equatable, Sendable {
     }
 
     /// Records what the watcher noticed. `verdict` is Apple's spell checker; only words it flags
-    /// are ever kept.
+    /// are ever kept. A word it didn't answer about in time (`.timedOut`) is never kept.
     public mutating func record(_ event: LearningEvent, day: String, verdict: (String) -> SpellVerdict) {
         switch event {
         case .corrected(let typed, let corrected):
             guard LearningRules.isLearnable(typed), LearningRules.isLearnable(corrected),
-                  LearningRules.isCloseSpelling(typed, corrected), verdict(typed) != .correct else { return }
+                  LearningRules.isCloseSpelling(typed, corrected), verdict(typed).isFlagged else { return }
             bump(.correction, typed: typed.lowercased(), correction: corrected, day: day)
         case .undone(let typed, let replacement):
             guard LearningRules.isLearnable(typed), LearningRules.isLearnable(replacement),
-                  LearningRules.isCloseSpelling(typed, replacement), verdict(typed) != .correct else { return }
+                  LearningRules.isCloseSpelling(typed, replacement), verdict(typed).isFlagged else { return }
             bump(.undo, typed: typed.lowercased(), correction: replacement.lowercased(), day: day)
         case .keptWord(let word):
             guard LearningRules.isLearnable(word), verdict(word) == .unknown else { return }
@@ -218,11 +218,23 @@ public struct LearningStore: Codable, Equatable, Sendable {
         return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
     }
 
-    /// Adds another store's items: the higher count and later day win, and rejected stays rejected.
-    public mutating func merge(_ other: LearningStore) {
-        for incoming in other.items {
+    /// Adds another store's items (an imported file): the higher count and later day win, and
+    /// rejected stays rejected. Returns how many items were refused.
+    ///
+    /// An imported file is treated like typing, not like approval: each item must be one live
+    /// learning could have made, or it's refused, and an imported correction waits for the user's
+    /// approval unless the same rule is already approved here.
+    @discardableResult
+    public mutating func merge(_ other: LearningStore) -> Int {
+        var refused = 0
+        for raw in other.items {
+            guard var incoming = LearningStore.importable(raw) else {
+                refused += 1
+                continue
+            }
+            if incoming.kind == .correction, incoming.status == .active { incoming.status = .proposed }
             guard let i = items.firstIndex(where: { $0.id == incoming.id }) else {
-                if items.count < LearningStore.maxItems { items.append(incoming) }
+                if items.count < LearningStore.maxItems { items.append(incoming) } else { refused += 1 }
                 continue
             }
             items[i].count = max(items[i].count, incoming.count)
@@ -236,5 +248,47 @@ public struct LearningStore: Codable, Equatable, Sendable {
                 items[i].status = .proposed
             }
         }
+        return refused
+    }
+
+    /// The item as live learning would have stored it, or nil if live learning could never have
+    /// made it. Used for imported files, which can contain anything.
+    static func importable(_ item: LearnedItem) -> LearnedItem? {
+        guard item.count >= 1, item.count <= 1_000_000, item.daysSeen >= 1, item.daysSeen <= item.count,
+              isDay(item.lastSeen) else { return nil }
+        var out = item
+        switch item.kind {
+        case .correction:
+            // Live learning makes these from close spellings; the user can then edit the
+            // correction to any plain word, so that's the rule here.
+            guard LearningRules.isLearnable(item.typed), LearningRules.isLearnable(item.correction),
+                  item.typed.lowercased() != item.correction.lowercased() else { return nil }
+            out.typed = item.typed.lowercased()
+        case .undo:
+            guard LearningRules.isLearnable(item.typed), LearningRules.isLearnable(item.correction),
+                  LearningRules.isCloseSpelling(item.typed, item.correction) else { return nil }
+            out.typed = item.typed.lowercased()
+            out.correction = item.correction.lowercased()
+        case .known:
+            // Learned from typing, or added by hand (which also allows emails and handles).
+            let handAdded = !item.typed.isEmpty && item.typed.count <= 64
+                && !item.typed.contains(where: { $0.isWhitespace || $0.isNewline })
+                && item.typed.unicodeScalars.allSatisfy { $0.properties.generalCategory != .control }
+            guard item.correction.isEmpty, LearningRules.isLearnable(item.typed) || handAdded else { return nil }
+        }
+        return out
+    }
+
+    /// True for a real day written like 2026-11-02.
+    private static func isDay(_ day: String) -> Bool {
+        let parts = day.split(separator: "-", omittingEmptySubsequences: false)
+        guard day.count == 10, parts.count == 3, parts[0].count == 4, parts[1].count == 2, parts[2].count == 2,
+              parts.allSatisfy({ $0.allSatisfy(\.isASCII) && $0.allSatisfy(\.isNumber) }),
+              let y = Int(parts[0]), let m = Int(parts[1]), let d = Int(parts[2]) else { return false }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        guard let date = cal.date(from: DateComponents(year: y, month: m, day: d)) else { return false }
+        let back = cal.dateComponents([.year, .month, .day], from: date)
+        return back.year == y && back.month == m && back.day == d
     }
 }

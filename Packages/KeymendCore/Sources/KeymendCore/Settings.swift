@@ -30,6 +30,42 @@ public struct NeverCorrectList: Equatable, Sendable {
     }
 }
 
+/// The Mac's shared "Learn Spelling" list, which every app's spell checker uses.
+public protocol SystemSpellingList {
+    func hasLearnedWord(_ word: String) -> Bool
+    func learnWord(_ word: String)
+    func unlearnWord(_ word: String)
+}
+
+extension AppleSpellChecker: SystemSpellingList {}
+
+/// The never-correct words Keymend itself added to the Mac's "Learn Spelling" list. Only these
+/// are taken off it again, so a word the user had taught the Mac before stays learned. Stored
+/// next to the never-correct list, which already holds the same words.
+public struct TaughtSpellings: Equatable, Sendable {
+    public private(set) var words: [String]
+
+    public init(words: [String] = []) {
+        self.words = words
+    }
+
+    /// Adds `raw` to the Mac's list unless it's already there, and remembers if Keymend added it.
+    public mutating func add(_ raw: String, to list: SystemSpellingList) {
+        let word = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !word.isEmpty, !list.hasLearnedWord(word) else { return }
+        list.learnWord(word)
+        if !words.contains(word) { words.append(word) }
+    }
+
+    /// Takes `raw` off the Mac's list, only if Keymend put it there.
+    public mutating func remove(_ raw: String, from list: SystemSpellingList) {
+        let word = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let mine = words.filter { $0.caseInsensitiveCompare(word) == .orderedSame }
+        for w in mine { list.unlearnWord(w) }
+        words.removeAll { $0.caseInsensitiveCompare(word) == .orderedSame }
+    }
+}
+
 /// Apps that use the Careful rules out of the box.
 public enum DefaultCarefulList {
     public static let bundleIDs: [String] = ["com.mitchellh.ghostty"]

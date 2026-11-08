@@ -4,7 +4,7 @@ Keymend needs macOS 14 Sonoma or later.
 
 ## 1. Download and copy
 
-1. Download [`Keymend-1.0.2.dmg`](https://github.com/garoknows/keymend/releases/tag/v1.0.2) from GitHub Releases.
+1. Download [`Keymend-1.1.1.dmg`](https://github.com/garoknows/keymend/releases/download/v1.1.1/Keymend-1.1.1.dmg) from [GitHub Releases](https://github.com/garoknows/keymend/releases/tag/v1.1.1).
 2. Open it and drag **Keymend** onto the **Applications** folder.
 
 ## 2. Open it
@@ -24,6 +24,8 @@ Keymend opens its setup window. Each step turns green by itself when it's done.
 ![System Settings, Privacy & Security, Accessibility: (1) Privacy & Security in the sidebar, (2) Accessibility, (3) the switch next to Keymend](images/step2-accessibility.png)
 
 If a switch is on but the step stays grey, quit Keymend from its menu and open it again. macOS sometimes applies Input Monitoring only after a restart of the app.
+
+If the menu ever says "Not working: macOS stopped Keymend's keyboard access", click **Try Again**. Keymend also retries by itself every 30 seconds.
 
 ## 4. Use it
 

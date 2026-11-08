@@ -180,7 +180,7 @@ struct LearningTab: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(action == .export
                  ? "Choose a passphrase for this file. You'll need it to import the file on another Mac. If you lose it, the file can't be opened."
-                 : "Enter the passphrase for the file you're importing.")
+                 : "Enter the passphrase for the file you're importing. Imported corrections wait for your approval, the same as ones learned here.")
                 .fixedSize(horizontal: false, vertical: true)
             SecureField("Passphrase", text: $passphrase)
             HStack {

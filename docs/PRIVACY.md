@@ -2,13 +2,14 @@
 
 Keymend sees every key you type. That is what lets it fix typos, and it is also exactly what a keylogger does. This page explains what Keymend sees, what it does with it, and how you can check.
 
-This page describes the 1.1.0 pre-release. Keymend 1.0.2, still the main download, has no Careful Mode or Learning Dictionary.
+This page describes Keymend 1.1.1.
 
 ## What Keymend sees
 
 - The keys you press while a normal text field is active, one at a time.
 - Mouse clicks (only that a click happened, not where), so it can forget the current word.
 - Which app is in front, so it can stay off in apps on your skip list.
+- Whether an input method (Chinese, Japanese, Korean and similar) is selected. While one is, Keymend ignores every key, as in a skipped app.
 
 ## What it keeps
 
@@ -18,7 +19,7 @@ This page describes the 1.1.0 pre-release. Keymend 1.0.2, still the main downloa
 | Words you undid this session | Memory only | Until you quit Keymend |
 | With Learning on: the last finished word | Memory only | About 5 seconds, or until you click, switch apps or pause |
 | With Learning on: learned words (see below) | One encrypted file in its sandbox container | Until you delete them, or 90 days unseen if never made active |
-| Your settings: on/off, skip list, never-correct words | The app's own settings file in its sandbox | Until you change them |
+| Your settings: on/off, skip list, never-correct words, and which of those words Keymend added to the Mac's Learn Spelling list | The app's own settings file in its sandbox | Until you change them |
 | Today's number of fixes | Same settings file | Resets every day |
 
 That's all. There are no logs, no history, no analytics and no crash reports. With Learning off, which is the default, no typed text is ever written to a file.
@@ -27,9 +28,13 @@ That's all. There are no logs, no history, no analytics and no crash reports. Wi
 
 **Stored for each item, and nothing else:** the kind (correction, undo or known word), the typed word, the correction, a count, the number of days it was seen, the last day it was seen (no time), and its status.
 
-**Never stored:** sentences, neighbouring words, the app, window, document or website, the time of day, or anything from Secure Input, an excluded app or a Careful Mode app.
+**Only words Apple's spell checker flags as misspelled are kept.** If the checker doesn't answer within 50 ms, the word is skipped, not kept.
+
+**Never stored:** sentences, neighbouring words, the app, window, document or website, the time of day, or anything from Secure Input, an excluded app, a Careful Mode app or an input method.
 
 The file is encrypted with AES-256-GCM, and the key is in your login Keychain. Exports are encrypted separately with a passphrase you choose. Learned words stay out of the Mac's shared Learn Spelling list.
+
+An imported file can't approve anything: imported corrections wait for your approval, and anything Keymend couldn't have learned itself is left out.
 
 **Limits:**
 
@@ -43,7 +48,7 @@ Clear Everything in Settings → Learning deletes the words, the file and the ke
 ## What it can't do
 
 - **Connect to the internet.** Keymend runs in Apple's App Sandbox without the network permission. macOS blocks every connection attempt, including from a bug.
-- **See password fields.** When a password field is active, macOS turns on Secure Input and stops all apps like Keymend from receiving keys. Keymend also checks for Secure Input and does nothing while it's on. Password managers are on the default skip list as well.
+- **See password fields.** When a password field is active, macOS turns on Secure Input and stops all apps like Keymend from receiving keys. Keymend also checks for Secure Input, does nothing while it's on, and checks once more right before it types any fix, in case a password field took focus in the meantime. Password managers are on the default skip list as well.
 - **Read your screen, files or contacts.** It doesn't have those permissions. The only files it can open besides its own are ones you pick in a save or open dialog, to export or import learned words.
 
 ## The exception: terminal password prompts
@@ -64,7 +69,7 @@ Careful Mode is on by default only in Ghostty, which turns on Secure Input when 
 
   The only entitlements listed are `com.apple.security.app-sandbox` and `com.apple.security.files.user-selected.read-write` (files you pick yourself).
 - **Watch the network.** Little Snitch, LuLu or `nettop -p Keymend` will show no connections.
-- **Look in its container.** Everything Keymend stores is in `~/Library/Containers/io.github.garoknows.keymend/`. Search it for something you typed. With Learning off you won't find it, and with Learning on the only word file is encrypted. The words you add to the Dictionary tab are in the settings file, in plain form.
+- **Look in its container.** Everything Keymend stores is in `~/Library/Containers/io.github.garoknows.keymend/`. Search it for something you typed. With Learning off you won't find it, and with Learning on the only word file is encrypted. The words you add to the Dictionary tab are in the settings file, in plain form, along with the list of those Keymend added to the Mac's Learn Spelling list.
 
 ## Permissions it asks for
 

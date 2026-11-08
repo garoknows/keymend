@@ -4,8 +4,19 @@ public enum SpellVerdict: Equatable, Sendable {
     case correct
     /// Misspelled, with a confident correction.
     case fix(String)
-    /// Misspelled, with no confident correction (or the checker ran out of time).
+    /// Misspelled, with no confident correction.
     case unknown
+    /// The spell checker didn't answer in time, so nothing is known about the word. Never fixed
+    /// and never learned from.
+    case timedOut
+
+    /// True only when the checker really flagged the word (misspelled, with or without a fix).
+    public var isFlagged: Bool {
+        switch self {
+        case .fix, .unknown: return true
+        case .correct, .timedOut: return false
+        }
+    }
 }
 
 /// The rules for Careful mode: is this line plain-language typing, or could it be a command?
@@ -72,7 +83,7 @@ public struct CarefulLine: Sendable {
                 return nil
             }
             return suggestion
-        case .unknown:
+        case .unknown, .timedOut:
             stop(isFirst: isFirst)
             return nil
         }

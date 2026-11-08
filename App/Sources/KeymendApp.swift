@@ -11,7 +11,7 @@ struct KeymendApp: App {
         MenuBarExtra {
             MenuContent(model: model)
         } label: {
-            Image(nsImage: MenuBarIcon.image(paused: !model.isEnabled || !model.permissionsGranted, pulse: model.pulse))
+            Image(nsImage: MenuBarIcon.image(paused: !model.isEnabled || !model.permissionsGranted || model.tapStopped || model.inputMethodActive, pulse: model.pulse))
         }
         .menuBarExtraStyle(.menu)
 
@@ -42,6 +42,12 @@ struct MenuContent: View {
         }
         Toggle(model.isEnabled ? "Keymend is On" : "Keymend is Paused", isOn: $model.isEnabled)
             .keyboardShortcut("k", modifiers: [.control, .option])
+        if model.tapStopped {
+            Text("Not working: macOS stopped Keymend's keyboard access")
+            Button("Try Again") { model.refreshPermissions() }
+        } else if model.isEnabled && model.inputMethodActive {
+            Text("Paused while an input method is in use")
+        }
         Text(DailyFixCount.summary(model.todayCount))
         Divider()
         if let app = model.currentApp, let name = app.localizedName {

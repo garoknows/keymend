@@ -227,12 +227,18 @@ struct LearningStoreTests {
         #expect(store.items.isEmpty)
     }
 
-    @Test(arguments: ["me@example.com", "@handle", "foo.bar", "src/main", "API", "camelCase", "v2", "a b"])
-    func codeShapesAndHandlesAreNeverCaptured(_ word: String) {
+    /// Each code shape is paired with a close plain spelling, so only the "plain words only" rule
+    /// can keep it out (a far-off pair would be refused for not being a close spelling).
+    @Test(arguments: [("me@example.com", "meexamplecom"), ("@handle", "handle"), ("foo.bar", "foobar"), ("src/main", "srcmain"),
+                      ("API", "apt"), ("camelCase", "camelcase"), ("v2", "va"), ("a b", "ab")])
+    func codeShapesAndHandlesAreNeverCaptured(_ pair: (String, String)) {
+        let (word, plain) = pair
+        #expect(LearningRules.isCloseSpelling(word, plain))
         var store = LearningStore()
         store.record(.keptWord(word), day: "2026-01-01", verdict: Self.flagged)
-        store.record(.corrected(typed: word, corrected: "word"), day: "2026-01-01", verdict: Self.flagged)
-        store.record(.undone(typed: word, replacement: "word"), day: "2026-01-01", verdict: Self.flagged)
+        store.record(.corrected(typed: word, corrected: plain), day: "2026-01-01", verdict: Self.flagged)
+        store.record(.undone(typed: word, replacement: plain), day: "2026-01-01", verdict: Self.flagged)
+        store.record(.corrected(typed: plain, corrected: word), day: "2026-01-01", verdict: Self.flagged)
         #expect(store.items.isEmpty)
     }
 
@@ -296,11 +302,11 @@ struct LearningStoreTests {
     @Test func importMergesHigherCountLaterDayAndRejectedWins() {
         var a = LearningStore(items: [
             LearnedItem(kind: .known, typed: "one", count: 5, daysSeen: 1, lastSeen: "2026-01-05"),
-            LearnedItem(kind: .correction, typed: "two", correction: "x", lastSeen: "2026-01-01", status: .rejected),
+            LearnedItem(kind: .correction, typed: "two", correction: "too", lastSeen: "2026-01-01", status: .rejected),
         ])
         let b = LearningStore(items: [
-            LearnedItem(kind: .known, typed: "one", count: 2, daysSeen: 4, lastSeen: "2026-01-09"),
-            LearnedItem(kind: .correction, typed: "two", correction: "x", lastSeen: "2026-01-01", status: .active),
+            LearnedItem(kind: .known, typed: "one", count: 4, daysSeen: 4, lastSeen: "2026-01-09"),
+            LearnedItem(kind: .correction, typed: "two", correction: "too", lastSeen: "2026-01-01", status: .active),
             LearnedItem(kind: .known, typed: "three", lastSeen: "2026-01-01"),
         ])
         a.merge(b)
@@ -412,7 +418,7 @@ struct LearningVaultTests {
     }
 
     @Test func exportNeedsThePassphraseAndHoldsNoPlainWords() throws {
-        let data = try LearningVault.exportData(Self.sample, passphrase: "made up passphrase", rounds: 1000)
+        let data = try LearningVault.exportData(Self.sample, passphrase: "made up passphrase", rounds: LearningVault.allowedRounds.lowerBound)
         #expect(data.range(of: Data("Zorblatmarker".utf8)) == nil)
         #expect(try LearningVault.store(fromExport: data, passphrase: "made up passphrase") == Self.sample)
         #expect(throws: LearningVaultError.wrongPassphrase) { try LearningVault.store(fromExport: data, passphrase: "another") }
@@ -421,7 +427,7 @@ struct LearningVaultTests {
 
     @Test func exportToAFile() throws {
         let url = Self.tempURL(); defer { try? FileManager.default.removeItem(at: url) }
-        try LearningVault.writeExport(Self.sample, passphrase: "made up", to: url, rounds: 1000)
+        try LearningVault.writeExport(Self.sample, passphrase: "made up", to: url, rounds: LearningVault.allowedRounds.lowerBound)
         #expect(try LearningVault.readExport(from: url, passphrase: "made up") == Self.sample)
     }
 }
