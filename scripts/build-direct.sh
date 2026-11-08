@@ -4,11 +4,17 @@
 # xcodebuild can't run, and it produces the same sandboxed, signed app.
 #
 # Usage: scripts/build-direct.sh [version]
+#        The version and build number come from project.yml unless given.
 # Env:   KEYMEND_BUILD_DIR (default ~/Library/Caches/Keymend-build)
+#        BUILD_NUMBER      (default: CURRENT_PROJECT_VERSION in project.yml)
 #        SIGN_IDENTITY     (default "-" = ad hoc; e.g. "Developer ID Application")
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${1:-1.1.0}"
+# Read a setting like `MARKETING_VERSION: "1.1.1"` from project.yml, the one place versions live.
+setting() { sed -n -E "s/^[[:space:]]*$1:[[:space:]]*\"?([^\"[:space:]]+)\"?[[:space:]]*$/\1/p" "$ROOT/project.yml" | head -1; }
+VERSION="${1:-$(setting MARKETING_VERSION)}"
+BUILD="${BUILD_NUMBER:-$(setting CURRENT_PROJECT_VERSION)}"
+[ -n "$VERSION" ] && [ -n "$BUILD" ] || { echo "Couldn't read the version or build number from project.yml"; exit 1; }
 B="${KEYMEND_BUILD_DIR:-$HOME/Library/Caches/Keymend-build}/direct-app"
 IDENTITY="${SIGN_IDENTITY:--}"
 APP="$B/Keymend.app"
@@ -31,11 +37,11 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 lipo -create "$B/arm64/Keymend" "$B/x86_64/Keymend" -output "$APP/Contents/MacOS/Keymend"
 cp "$ROOT/App/Info.plist" "$APP/Contents/Info.plist"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
-plutil -replace CFBundleVersion -string "${BUILD_NUMBER:-4}" "$APP/Contents/Info.plist"
+plutil -replace CFBundleVersion -string "$BUILD" "$APP/Contents/Info.plist"
 [ -f "$ROOT/App/Resources/AppIcon.icns" ] && cp "$ROOT/App/Resources/AppIcon.icns" "$APP/Contents/Resources/"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
 TS="--timestamp=none"; [ "$IDENTITY" != "-" ] && TS="--timestamp"
 codesign --force --options runtime $TS --entitlements "$ROOT/App/Keymend.entitlements" --sign "$IDENTITY" "$APP"
 codesign --verify --strict --verbose=2 "$APP"
-echo "Built $APP"
+echo "Built $APP (version $VERSION, build $BUILD)"
