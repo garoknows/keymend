@@ -118,6 +118,13 @@ public struct WordEngine: Sendable {
         undoable = correction
     }
 
+    /// A fix or undo the engine asked for wasn't typed, so the screen may not hold what the engine
+    /// thinks. Forget the current word and fix nothing until the next word starts cleanly.
+    public mutating func forgetCurrentWord() {
+        clearWord(tainted: true)
+        undoable = nil
+    }
+
     /// Clears everything except the session's undone words.
     public mutating func reset() {
         clearWord(tainted: true)

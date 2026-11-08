@@ -100,16 +100,16 @@ public struct LearningStore: Codable, Equatable, Sendable {
     }
 
     /// Records what the watcher noticed. `verdict` is Apple's spell checker; only words it flags
-    /// are ever kept.
+    /// are ever kept. A word it didn't answer about in time (`.timedOut`) is never kept.
     public mutating func record(_ event: LearningEvent, day: String, verdict: (String) -> SpellVerdict) {
         switch event {
         case .corrected(let typed, let corrected):
             guard LearningRules.isLearnable(typed), LearningRules.isLearnable(corrected),
-                  LearningRules.isCloseSpelling(typed, corrected), verdict(typed) != .correct else { return }
+                  LearningRules.isCloseSpelling(typed, corrected), verdict(typed).isFlagged else { return }
             bump(.correction, typed: typed.lowercased(), correction: corrected, day: day)
         case .undone(let typed, let replacement):
             guard LearningRules.isLearnable(typed), LearningRules.isLearnable(replacement),
-                  LearningRules.isCloseSpelling(typed, replacement), verdict(typed) != .correct else { return }
+                  LearningRules.isCloseSpelling(typed, replacement), verdict(typed).isFlagged else { return }
             bump(.undo, typed: typed.lowercased(), correction: replacement.lowercased(), day: day)
         case .keptWord(let word):
             guard LearningRules.isLearnable(word), verdict(word) == .unknown else { return }

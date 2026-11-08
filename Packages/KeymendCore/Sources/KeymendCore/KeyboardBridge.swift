@@ -137,29 +137,50 @@ public final class KeyboardBridge: @unchecked Sendable {
             if never.contains(word) || checker.hasLearnedWord(word) { return .correct }
             return learned.applied(to: word) { checker.verdict(for: word) }
         })
-        if capturing {
-            watch(input, action: action, never: never)
-        } else {
+        let performed = action.plan != nil && perform(action, sequence: sequence, careful: careful)
+        if !capturing {
             watcher.reset()
+        } else if case .undo = action, !performed {
+            // The undo wasn't typed, so the user's Delete did something learning can't follow.
+            watcher.reset()
+        } else {
+            watch(input, action: performed ? action : .none, never: never)
+            if performed, case .correct = action { watcher.didFix() }
         }
-        guard let plan = action.plan else { return }
+    }
+
+    /// Types the fix or undo if it's still safe. Returns true if it was typed.
+    private func perform(_ action: EngineAction, sequence: UInt64, careful: Bool) -> Bool {
+        guard let plan = action.plan else { return false }
         // Careful mode won't risk a wrong letter: every character must have a real key.
-        if careful, !output.canType(plan.text) { return }
+        if careful, !output.canType(plan.text) {
+            // A fix that isn't typed leaves the screen as the engine expects. An undo doesn't.
+            if case .undo = action { engine.forgetCurrentWord() }
+            return false
+        }
         // Another key arrived while we were checking: the screen has moved on.
-        guard lock.withLock({ latestSequence == sequence }) else { return }
+        guard lock.withLock({ latestSequence == sequence }) else {
+            engine.forgetCurrentWord()
+            return false
+        }
         hooks.beforePerform()
-        guard lock.withLock({ latestSequence == sequence && _enabled && !_appSkipped }) else { return }
+        // The last look before typing. While Secure Input is on (a password field has focus) the
+        // tap gets no keys, so the check above can't see that focus moved: ask macOS directly.
+        guard lock.withLock({ latestSequence == sequence && _enabled && !_appSkipped }), !secureInputCheck() else {
+            engine.forgetCurrentWord()
+            return false
+        }
         output.perform(plan)
         switch action {
         case .correct(let c):
             engine.didApply(c)
-            if capturing { watcher.didFix() }
             hooks.didFix()
         case .undo:
             hooks.didUndo()
         case .none:
             break
         }
+        return true
     }
 }
 
@@ -191,9 +212,11 @@ extension KeyboardBridge {
             }
             if never.contains(word) { continue }
             let verdict = checker.verdict(for: word)
+            // Only words the checker really flagged go on. A check that ran out of time says
+            // nothing about the word, so it's dropped like a correctly spelled one.
             switch event {
             case .keptWord: if verdict != .unknown { continue }
-            default: if verdict == .correct { continue }
+            default: if !verdict.isFlagged { continue }
             }
             hooks.didLearn(event, verdict)
         }
