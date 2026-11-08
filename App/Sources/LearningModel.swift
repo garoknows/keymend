@@ -203,14 +203,23 @@ final class LearningModel: ObservableObject {
         panel.allowsMultipleSelection = false
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            let incoming = try LearningVault.readExport(from: url, passphrase: passphrase)
-            change { $0.merge(incoming) }
-            problem = nil
-        } catch LearningVaultError.wrongPassphrase {
-            problem = "That passphrase doesn't open this file."
-        } catch {
-            problem = "That isn't a Keymend export."
+        // Opening the file takes deliberate key work (about a second), so it runs off the main
+        // thread and the menu bar and Settings stay responsive.
+        Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                Result { try LearningVault.readExport(from: url, passphrase: passphrase) }
+            }.value
+            switch result {
+            case .success(let incoming):
+                var refused = 0
+                change { refused = $0.merge(incoming) }
+                problem = refused == 0 ? nil
+                    : "\(refused) item\(refused == 1 ? "" : "s") in that file weren't plain words Keymend could learn, so they were left out."
+            case .failure(LearningVaultError.wrongPassphrase):
+                problem = "That passphrase doesn't open this file."
+            case .failure:
+                problem = "That isn't a Keymend export."
+            }
         }
     }
 }

@@ -290,3 +290,87 @@ struct DeadTapTests {
         #expect(tap.starts == 1)
     }
 }
+
+@Suite("Review 2026-11, finding 8: importing a word file")
+struct ImportTests {
+    @Test func anImportedCorrectionWaitsForApproval() {
+        var store = LearningStore()
+        let skipped = store.merge(LearningStore(items: [
+            LearnedItem(kind: .correction, typed: "zorp", correction: "zoro", count: 9, daysSeen: 3, lastSeen: "2026-01-01", status: .active),
+        ]))
+        #expect(skipped == 0)
+        #expect(store.items.first?.status == .proposed)
+        #expect(store.rules == LearnedRules())
+    }
+
+    @Test func aCorrectionAlreadyApprovedHereStaysApproved() {
+        var store = LearningStore(items: [
+            LearnedItem(kind: .correction, typed: "zorp", correction: "zoro", lastSeen: "2026-01-01", status: .active),
+        ])
+        store.merge(LearningStore(items: [
+            LearnedItem(kind: .correction, typed: "zorp", correction: "zoro", count: 4, daysSeen: 2, lastSeen: "2026-02-01", status: .active),
+        ]))
+        #expect(store.items.first?.status == .active)
+        #expect(store.items.first?.count == 4)
+    }
+
+    @Test func anImportedProposalNeverOverridesAnExistingWatchingItemToActive() {
+        var store = LearningStore(items: [
+            LearnedItem(kind: .correction, typed: "zorp", correction: "zoro", lastSeen: "2026-01-01"),
+        ])
+        store.merge(LearningStore(items: [
+            LearnedItem(kind: .correction, typed: "zorp", correction: "zoro", lastSeen: "2026-01-01", status: .active),
+        ]))
+        #expect(store.items.first?.status == .proposed)
+    }
+
+    @Test(arguments: [
+        LearnedItem(kind: .correction, typed: "the", correction: "rm -rf", lastSeen: "2026-01-01", status: .active),
+        LearnedItem(kind: .correction, typed: "the", correction: "the\nend", lastSeen: "2026-01-01", status: .active),
+        LearnedItem(kind: .correction, typed: "the", correction: "THE", lastSeen: "2026-01-01", status: .active),
+        LearnedItem(kind: .correction, typed: "a b", correction: "ab", lastSeen: "2026-01-01", status: .active),
+        LearnedItem(kind: .correction, typed: "teh", correction: "", lastSeen: "2026-01-01", status: .active),
+        LearnedItem(kind: .correction, typed: "teh", correction: "https://example.com", lastSeen: "2026-01-01", status: .active),
+        LearnedItem(kind: .undo, typed: "teh", correction: "something", lastSeen: "2026-01-01", status: .active),
+        LearnedItem(kind: .known, typed: "two words", lastSeen: "2026-01-01", status: .active),
+        LearnedItem(kind: .known, typed: String(repeating: "a", count: 65), lastSeen: "2026-01-01", status: .active),
+        LearnedItem(kind: .known, typed: "fine", count: 0, lastSeen: "2026-01-01"),
+        LearnedItem(kind: .known, typed: "fine", count: 2, daysSeen: 3, lastSeen: "2026-01-01"),
+        LearnedItem(kind: .known, typed: "fine", lastSeen: "yesterday"),
+        LearnedItem(kind: .known, typed: "fine", lastSeen: "2026-13-45"),
+    ])
+    func anItemLiveLearningCouldNeverMakeIsRejected(_ item: LearnedItem) {
+        var store = LearningStore()
+        #expect(store.merge(LearningStore(items: [item])) == 1)
+        #expect(store.items.isEmpty)
+    }
+
+    @Test func handAddedWordsAndNormalItemsStillImport() {
+        var store = LearningStore()
+        let skipped = store.merge(LearningStore(items: [
+            LearnedItem(kind: .known, typed: "me@example.com", lastSeen: "2026-01-01", status: .active),
+            LearnedItem(kind: .known, typed: "Zorblat", count: 5, daysSeen: 3, lastSeen: "2026-01-01", status: .active),
+            LearnedItem(kind: .undo, typed: "teh", correction: "the", count: 2, lastSeen: "2026-01-01", status: .active),
+            LearnedItem(kind: .correction, typed: "recieve", correction: "receive", lastSeen: "2026-01-01", status: .rejected),
+        ]))
+        #expect(skipped == 0)
+        #expect(store.items.count == 4)
+        // Things that only make Keymend do less apply at once, as with live learning.
+        #expect(store.items.filter { $0.status == .active }.count == 3)
+    }
+
+    @Test(arguments: [UInt32(1_000), 99_999, 2_000_001, 10_000_000])
+    func aFileAskingForAStrangeAmountOfWorkIsRefused(_ rounds: UInt32) throws {
+        // A hand-made file header: refused before any key work starts, so this test is instant.
+        var data = Data("KEYMEND-LEARNING-1".utf8)
+        withUnsafeBytes(of: rounds.bigEndian) { data.append(contentsOf: $0) }
+        data.append(Data(repeating: 7, count: 16 + 64))
+        let start = Date()
+        #expect(throws: LearningVaultError.notAnExport) { try LearningVault.store(fromExport: data, passphrase: "p") }
+        #expect(Date().timeIntervalSince(start) < 0.05)
+    }
+
+    @Test func theDefaultAmountOfWorkIsAccepted() {
+        #expect(LearningVault.allowedRounds.contains(LearningVault.rounds))
+    }
+}

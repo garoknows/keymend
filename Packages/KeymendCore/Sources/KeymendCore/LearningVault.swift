@@ -128,6 +128,9 @@ public struct LearningVault: Sendable {
 
     private static let magic = Data("KEYMEND-LEARNING-1".utf8)
     public static let rounds: UInt32 = 600_000
+    /// How much key work an imported file may ask for. A file asking for more could freeze the
+    /// Mac for minutes; one asking for less was never made by Keymend.
+    public static let allowedRounds: ClosedRange<UInt32> = 100_000...2_000_000
 
     public static func writeExport(_ store: LearningStore, passphrase: String, to url: URL, rounds: UInt32 = LearningVault.rounds) throws {
         // Written straight to the chosen file: the sandbox allows that file and nothing beside it.
@@ -155,7 +158,7 @@ public struct LearningVault: Sendable {
         let saltStart = magic.count + 4
         guard bytes.count > saltStart + 16, bytes.prefix(magic.count) == magic else { throw LearningVaultError.notAnExport }
         let rounds = bytes[magic.count..<saltStart].reduce(UInt32(0)) { $0 << 8 | UInt32($1) }
-        guard rounds > 0, rounds <= 10_000_000 else { throw LearningVaultError.notAnExport }
+        guard allowedRounds.contains(rounds) else { throw LearningVaultError.notAnExport }
         let salt = bytes[saltStart..<(saltStart + 16)]
         let key = try derive(passphrase, salt: Data(salt), rounds: rounds)
         do {
