@@ -32,6 +32,7 @@ public final class KeyboardBridge: @unchecked Sendable {
     private var _enabled = true
     private var _appSkipped = false
     private var _appCareful = false
+    private var _inputMethod = false
     private var _neverCorrect = NeverCorrectList()
     private var _learningCaptures = false
     private var _learnedRules = LearnedRules()
@@ -63,6 +64,13 @@ public final class KeyboardBridge: @unchecked Sendable {
     public var isAppSkipped: Bool {
         get { lock.withLock { _appSkipped } }
         set { lock.withLock { _appSkipped = newValue }; reset() }
+    }
+
+    /// True while an input method (Japanese, Chinese, Korean…) is selected. Works like a
+    /// skipped app. Set by `InputMethodPause`.
+    public var isInputMethodActive: Bool {
+        get { lock.withLock { _inputMethod } }
+        set { lock.withLock { _inputMethod = newValue }; reset() }
     }
 
     /// True while the frontmost app uses the Careful rules (terminals).
@@ -106,11 +114,11 @@ public final class KeyboardBridge: @unchecked Sendable {
     /// Feeds one event from the tap. Returns immediately.
     public func receive(_ raw: RawKeyEvent) {
         guard let classified = KeyEventClassifier.classify(raw) else { return }
-        let (active, careful) = lock.withLock { (_enabled && !_appSkipped, _appCareful) }
+        let (active, careful) = lock.withLock { (_enabled && !_appSkipped && !_inputMethod, _appCareful) }
         // In Careful mode only the user's own typing counts, not keys another program posts.
         let input = careful && raw.isFromAnotherProgram ? KeyInput.reset : classified
         if !active || secureInputCheck() {
-            // Paused, skipped app or password field: hold nothing at all.
+            // Paused, skipped app, input method or password field: hold nothing at all.
             if input != .reset { reset() }
             return
         }
@@ -166,7 +174,7 @@ public final class KeyboardBridge: @unchecked Sendable {
         hooks.beforePerform()
         // The last look before typing. While Secure Input is on (a password field has focus) the
         // tap gets no keys, so the check above can't see that focus moved: ask macOS directly.
-        guard lock.withLock({ latestSequence == sequence && _enabled && !_appSkipped }), !secureInputCheck() else {
+        guard lock.withLock({ latestSequence == sequence && _enabled && !_appSkipped && !_inputMethod }), !secureInputCheck() else {
             engine.forgetCurrentWord()
             return false
         }
@@ -223,9 +231,30 @@ extension KeyboardBridge {
     }
 }
 
+/// What the app needs from the keyboard hook. Lets the restart logic be tested with a fake.
+public protocol KeyEventTapping: AnyObject {
+    var isRunning: Bool { get }
+    @discardableResult func start() -> Bool
+    func stop()
+}
+
+public enum TapSupervisor {
+    /// Makes sure the hook runs when it's allowed to, recreating one macOS stopped. Returns
+    /// whether it really is running afterwards, which is what the menu shows.
+    @discardableResult
+    public static func ensureRunning(_ tap: KeyEventTapping, permitted: Bool) -> Bool {
+        guard permitted else { return tap.isRunning }
+        if !tap.isRunning {
+            tap.stop()
+            tap.start()
+        }
+        return tap.isRunning
+    }
+}
+
 /// A listen-only Core Graphics event tap on its own thread. Needs Input Monitoring
 /// (`CGRequestListenEventAccess`), which works inside the App Sandbox.
-public final class KeyEventTap: @unchecked Sendable {
+public final class KeyEventTap: KeyEventTapping, @unchecked Sendable {
     private let bridge: KeyboardBridge
     private var tap: CFMachPort?
     private var thread: Thread?
@@ -245,7 +274,11 @@ public final class KeyEventTap: @unchecked Sendable {
     /// Starts the tap. Returns false if macOS refused (usually: no Input Monitoring yet).
     @discardableResult
     public func start() -> Bool {
-        if tap != nil { return true }
+        if let tap {
+            if CGEvent.tapIsEnabled(tap: tap) { return true }
+            // macOS stopped it (or Input Monitoring was turned off and on): make a new one.
+            stop()
+        }
         let mask: CGEventMask =
             (1 << CGEventType.keyDown.rawValue) |
             (1 << CGEventType.leftMouseDown.rawValue) |

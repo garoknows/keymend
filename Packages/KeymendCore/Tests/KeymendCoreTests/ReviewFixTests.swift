@@ -191,3 +191,102 @@ struct DroppedUndoTests {
         #expect(h.field.text == "teh x the ")
     }
 }
+
+/// Says whatever the test sets: an input method (Japanese, Chinese, Korean…) or a plain layout.
+private final class FakeInputSource: InputSourceReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _isInputMethod = false
+    var isInputMethod: Bool {
+        get { lock.withLock { _isInputMethod } }
+        set { lock.withLock { _isInputMethod = newValue } }
+    }
+    func currentIsInputMethod() -> Bool { isInputMethod }
+}
+
+@Suite("Review 2026-11, finding 6: input methods pause Keymend", .serialized)
+struct InputMethodPauseTests {
+    @Test func inputSourceTypesAreRecognised() {
+        #expect(SystemInputSource.isInputMethod(type: "TISTypeKeyboardInputMode"))
+        #expect(SystemInputSource.isInputMethod(type: "TISTypeKeyboardInputMethodWithoutModes"))
+        #expect(!SystemInputSource.isInputMethod(type: "TISTypeKeyboardLayout"))
+    }
+
+    @Test func anInputMethodPausesFixesAndLearningAndResumesAfter() {
+        let h = Harness()
+        let source = FakeInputSource()
+        let pause = InputMethodPause(source: source, bridge: h.bridge)
+        let log = EventLog()
+        h.bridge.hooks.didLearn = { event, _ in log.add(event) }
+        h.bridge.learningCaptures = true
+
+        source.isInputMethod = true
+        #expect(pause.refresh() == true)
+        #expect(h.bridge.isInputMethodActive)
+        // Romaji: Space converts, so it must never end a "word" that gets fixed.
+        h.type("teh nihongo zzqqxx desu\n")
+        #expect(h.field.text == "teh nihongo zzqqxx desu\n")
+        #expect(h.field.postedEventCount == 0)
+        #expect(log.events.isEmpty)
+
+        source.isInputMethod = false
+        #expect(pause.refresh() == false)
+        // As after any pause, the first word is skipped (the caret position was unknown).
+        h.type("x teh ")
+        #expect(h.field.text.hasSuffix("\nx the "))
+    }
+
+    @Test func switchingToAnInputMethodClearsTheWordBeingTyped() {
+        let h = Harness()
+        let source = FakeInputSource()
+        let pause = InputMethodPause(source: source, bridge: h.bridge)
+        h.type("te")
+        source.isInputMethod = true
+        pause.refresh()
+        source.isInputMethod = false
+        pause.refresh()
+        h.type("h ")
+        // "teh" was split across the switch: Keymend can't know what's on screen, so it's left.
+        #expect(h.field.text == "teh ")
+    }
+}
+
+/// Behaves like the old KeyEventTap: start() does nothing while a (dead) tap still exists.
+private final class FakeTap: KeyEventTapping, @unchecked Sendable {
+    var exists = false
+    var running = false
+    var starts = 0
+    var isRunning: Bool { running }
+    @discardableResult func start() -> Bool {
+        starts += 1
+        if exists { return true }
+        exists = true
+        running = true
+        return true
+    }
+    func stop() { exists = false; running = false }
+}
+
+@Suite("Review 2026-11, finding 7: a dead keyboard hook comes back")
+struct DeadTapTests {
+    @Test func aStoppedTapIsRecreated() {
+        let tap = FakeTap()
+        #expect(TapSupervisor.ensureRunning(tap, permitted: true))
+        // macOS drops the tap (Input Monitoring turned off and on, for example).
+        tap.running = false
+        #expect(TapSupervisor.ensureRunning(tap, permitted: true))
+        #expect(tap.isRunning)
+    }
+
+    @Test func withoutPermissionItReportsTheRealState() {
+        let tap = FakeTap()
+        #expect(TapSupervisor.ensureRunning(tap, permitted: false) == false)
+        #expect(tap.starts == 0)
+    }
+
+    @Test func aRunningTapIsLeftAlone() {
+        let tap = FakeTap()
+        TapSupervisor.ensureRunning(tap, permitted: true)
+        TapSupervisor.ensureRunning(tap, permitted: true)
+        #expect(tap.starts == 1)
+    }
+}
