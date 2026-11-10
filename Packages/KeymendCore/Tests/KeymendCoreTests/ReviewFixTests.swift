@@ -56,11 +56,13 @@ struct SpellTimeoutTests {
         #expect(limited.verdict(for: "hello") == .correct)
     }
 
+    /// Generous on purpose: a busy CI machine can wake a thread late (it measured 0.2001 s against
+    /// the old 0.2 s bound). Ignoring the limit would take the full 3 seconds.
     @Test func hasLearnedWordHasTheSameLimit() {
-        let limited = TimeLimitedSpellChecker(SlowChecker(slow: ["hasLearnedWord"]), limit: .milliseconds(50))
+        let limited = TimeLimitedSpellChecker(SlowChecker(slow: ["hasLearnedWord"], delay: 3), limit: .milliseconds(50))
         let start = Date()
         #expect(limited.hasLearnedWord("salary") == false)
-        #expect(Date().timeIntervalSince(start) < 0.2)
+        #expect(Date().timeIntervalSince(start) < 1.5)
     }
 
     @Test func theStoreNeverKeepsATimedOutWord() {
