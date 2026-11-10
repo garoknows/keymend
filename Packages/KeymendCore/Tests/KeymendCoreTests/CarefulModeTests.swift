@@ -378,15 +378,19 @@ struct CarefulRealCheckerTests {
     @Test(.enabled(if: spellServiceAvailable, "macOS spell service not reachable from this process"))
     func protectedLinesStayExactlyAsTyped() {
         let lines = Corpus.listedCommands + Corpus.lineStartSymbols + Corpus.codeWordsMidLine + Corpus.quoted + Corpus.code + Corpus.unknownFirstWord
-        for line in lines {
-            expectUntouched(line, checker: AppleSpellChecker())
+        withRealService("Spell service", seconds: 120) {
+            for line in lines {
+                expectUntouched(line, checker: AppleSpellChecker())
+            }
         }
     }
 
     @Test(.enabled(if: spellServiceAvailable, "macOS spell service not reachable from this process"))
     func plainLanguageIsFixed() {
-        let h = carefulHarness(AppleSpellChecker())
-        h.type("can you fix the teh ")
-        #expect(h.field.text == "can you fix the the ")
+        withRealService("Spell service") {
+            let h = carefulHarness(AppleSpellChecker())
+            h.type("can you fix the teh ")
+            #expect(h.field.text == "can you fix the the ")
+        }
     }
 }

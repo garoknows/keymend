@@ -63,6 +63,7 @@ jobs:
           echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
 
       - name: Tests
+        timeout-minutes: 10
         run: swift test --package-path Packages/KeymendCore
 
       - name: Compile the app icon (Icon Composer .icon to Assets.car + fallback .icns)

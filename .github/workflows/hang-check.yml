@@ -1,0 +1,44 @@
+name: Hang check
+
+# Runs the tests many times, without any sandbox, on feature branches. A hang can be intermittent,
+# so a single pass proves little. Each run has a hard time limit and a hang fails this job.
+on:
+  push:
+    branches: ["feature/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  repeat-tests:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      KEYMEND_BUILD_DIR: ${{ github.workspace }}/.hang-check
+      KEYMEND_TEST_LIMIT: "120"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Run the tests 15 times, each with a time limit
+        timeout-minutes: 25
+        run: |
+          set +e  # keep going after a failed run, so every run is counted
+          FAILED=0
+          for i in $(seq 1 15); do
+            if [ "$i" = 1 ]; then
+              Packages/KeymendCore/run-tests-direct.sh > run.log 2>&1
+            else
+              KEYMEND_TEST_DIR="$KEYMEND_BUILD_DIR/direct-tests" perl -e 'alarm shift; exec @ARGV or die' "$KEYMEND_TEST_LIMIT" \
+                "$KEYMEND_BUILD_DIR/direct-tests/keymend-core-tests" > run.log 2>&1
+            fi
+            CODE=$?
+            echo "run $i: exit $CODE. $(grep -E 'Test run with' run.log | tail -1)"
+            if [ "$CODE" != 0 ]; then
+              FAILED=$((FAILED + 1))
+              tail -25 run.log
+            fi
+          done
+          echo "Runs that failed or hung: $FAILED of 15"
+          [ "$FAILED" = 0 ]

@@ -29,6 +29,7 @@ jobs:
           swift --version
 
       - name: Unit and harness tests (KeymendCore)
+        timeout-minutes: 10
         run: swift test --package-path Packages/KeymendCore
 
       - name: Compile the app icon (Icon Composer .icon to Assets.car + fallback .icns)

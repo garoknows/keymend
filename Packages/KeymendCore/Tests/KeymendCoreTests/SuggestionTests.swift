@@ -541,10 +541,11 @@ struct SuggestionRuleTests {
     }
 
     @Test func theRealCheckerOffersCompletionsWhenItCanBeReached() {
-        let checker = AppleSpellChecker()
         // The spell service is out of reach in some restricted environments. CI runs this.
-        guard checker.verdict(for: "teh") != .correct else { return }
-        #expect(!checker.completions(for: "hel").isEmpty)
+        guard spellServiceAvailable else { return }
+        withRealService("Spell service") {
+            #expect(!AppleSpellChecker().completions(for: "hel").isEmpty)
+        }
     }
 
     @Test func aSlowCheckerGivesNoCompletionsInsteadOfHoldingUpTyping() {
