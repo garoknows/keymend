@@ -388,11 +388,11 @@ private final class FakeSpellingList: SystemSpellingList, @unchecked Sendable {
 @Suite("Review 2026-11, finding 10: only unlearn what Keymend taught")
 struct TaughtSpellingTests {
     @Test func aWordTheUserLearnedBeforeKeymendStaysLearned() {
-        let mac = FakeSpellingList(["Garoverse"])
+        let mac = FakeSpellingList(["Zorblatt"])
         var taught = TaughtSpellings()
-        taught.add("Garoverse", to: mac)
-        taught.remove("Garoverse", from: mac)
-        #expect(mac.learned.contains("Garoverse"))
+        taught.add("Zorblatt", to: mac)
+        taught.remove("Zorblatt", from: mac)
+        #expect(mac.learned.contains("Zorblatt"))
         #expect(mac.calls.isEmpty)
     }
 
