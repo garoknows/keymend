@@ -132,8 +132,17 @@ struct SettingsTests {
 
 /// The Mac's spell service runs as a separate system process. Some restricted shells
 /// (for example a sandboxed build agent) cannot reach it; these tests then skip.
-let spellServiceAvailable: Bool = withRealService("Spell service") {
-    NSSpellChecker.shared.checkSpelling(of: "teh", startingAt: 0).location != NSNotFound
+let spellServiceAvailable: Bool = withRealService("Spell service") { realCheckerFlagsTeh() }
+
+/// Asks about "teh" in the checker's own language, the way `AppleSpellChecker` does. Asking in
+/// automatic mode isn't reliable: once macOS has loaded the dictionaries for the Mac's other
+/// languages, it accepts "teh" because it's Indonesian for "tea". That happened on every GitHub
+/// Mac after the first spell check, so a second test run on the same Mac always failed here.
+func realCheckerFlagsTeh() -> Bool {
+    let checker = NSSpellChecker.shared
+    let miss = checker.checkSpelling(of: "teh", startingAt: 0, language: checker.language(), wrap: false,
+                                     inSpellDocumentWithTag: 0, wordCount: nil)
+    return miss.location != NSNotFound
 }
 
 /// The real-spell-checker tests skip themselves where the service can't be reached. On CI that
@@ -143,7 +152,7 @@ let spellServiceAvailable: Bool = withRealService("Spell service") {
     var ok = spellServiceAvailable
     for _ in 0..<30 where !ok {
         Thread.sleep(forTimeInterval: 0.5)
-        ok = NSSpellChecker.shared.checkSpelling(of: "teh", startingAt: 0).location != NSNotFound
+        ok = realCheckerFlagsTeh()
     }
     #expect(ok, "the real spell checker tests would be skipped on CI")
 }
