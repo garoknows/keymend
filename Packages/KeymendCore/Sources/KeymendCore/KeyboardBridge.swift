@@ -17,6 +17,8 @@ public final class KeyboardBridge: @unchecked Sendable {
         /// Called on the engine queue when learning notices a word, with the spell checker's
         /// answer. Only while learning is capturing.
         public var didLearn: @Sendable (LearningEvent, SpellVerdict) -> Void = { _, _ in }
+        /// Called on the engine queue when the suggestion bar should change. Nil hides it.
+        public var didChangeSuggestions: @Sendable (SuggestionBar?) -> Void = { _ in }
         /// Test hook: runs right before a plan is typed.
         public var beforePerform: @Sendable () -> Void = {}
         public init() {}
@@ -36,16 +38,29 @@ public final class KeyboardBridge: @unchecked Sendable {
     private var _neverCorrect = NeverCorrectList()
     private var _learningCaptures = false
     private var _learnedRules = LearnedRules()
+    private var _suggestionsAllowed = false
+    private var _pickFilter = PickKeyFilter()
+    private var _barGeneration: UInt64?
+    private var _barFrame: CGRect?
 
     // Only touched on `queue`.
     private var engine = WordEngine()
     fileprivate var watcher = LearningWatcher()
+    private var shownBar: SuggestionBar?
+    private var nextBarGeneration: UInt64 = 0
+    /// The word the user just picked as typed, so the bar doesn't come straight back for it.
+    private var keptWord: String?
 
     public var hooks: Hooks
     /// Returns true while macOS Secure Input is on (a password field has focus).
     public var secureInputCheck: @Sendable () -> Bool = { IsSecureEventInputEnabled() }
     /// The clock learning uses. For tests.
     public var now: @Sendable () -> Date = { Date() }
+    /// True while a modifier key is physically down. A pick waits for it, so a held Option can't
+    /// change what the typed keys do.
+    public var modifiersHeld: @Sendable () -> Bool = {
+        !CGEventSource.flagsState(.hidSystemState).intersection([.maskAlternate, .maskControl, .maskShift, .maskCommand]).isEmpty
+    }
 
     public init(output: KeyOutput, checker: SpellChecking, hooks: Hooks = Hooks()) {
         self.output = output
@@ -100,12 +115,34 @@ public final class KeyboardBridge: @unchecked Sendable {
         set { lock.withLock { _learnedRules = newValue } }
     }
 
+    /// True when the bar may show here: the setting is on and the app uses the normal rules.
+    public var suggestionsAllowed: Bool {
+        get { lock.withLock { _suggestionsAllowed } }
+        set {
+            lock.withLock { _suggestionsAllowed = newValue }
+            queue.async { self.refreshSuggestions(sequence: nil) }
+        }
+    }
+
+    public var pickKeys: PickKeys {
+        get { lock.withLock { _pickFilter.keys } }
+        set { lock.withLock { _pickFilter.keys = newValue } }
+    }
+
+    /// Where the bar is on screen (top-left origin), so a click on it doesn't count as a click
+    /// elsewhere. Nil when it's hidden.
+    public var barFrame: CGRect? {
+        get { lock.withLock { _barFrame } }
+        set { lock.withLock { _barFrame = newValue } }
+    }
+
     /// Forget the current word (app switch, wake from sleep, layout change).
     public func reset() {
         lock.withLock { latestSequence &+= 1 }
         queue.async {
             self.engine.reset()
             self.watcher.reset()
+            self.refreshSuggestions(sequence: nil)
         }
     }
 
@@ -113,6 +150,8 @@ public final class KeyboardBridge: @unchecked Sendable {
 
     /// Feeds one event from the tap. Returns immediately.
     public func receive(_ raw: RawKeyEvent) {
+        // A pick key the active tap already took isn't typing.
+        if raw.kind == .keyDown, lock.withLock({ _pickFilter.heldKey == raw.keyCode }) { return }
         guard let classified = KeyEventClassifier.classify(raw) else { return }
         let (active, careful) = lock.withLock { (_enabled && !_appSkipped && !_inputMethod, _appCareful) }
         // In Careful mode only the user's own typing counts, not keys another program posts.
@@ -128,7 +167,92 @@ public final class KeyboardBridge: @unchecked Sendable {
 
     /// Feeds a Core Graphics event (what the tap callback calls).
     public func receive(_ event: CGEvent, type: CGEventType) {
-        receive(RawKeyEvent(event, type: type))
+        let raw = RawKeyEvent(event, type: type)
+        // Clicking the bar picks from it; it isn't a click elsewhere.
+        if raw.kind == .mouseDown, barFrame?.contains(event.location) == true { return }
+        receive(raw)
+    }
+
+    // MARK: Suggestions
+
+    /// Asked by the active tap about every key while it runs. Returns at once.
+    public func pickDecision(for raw: RawKeyEvent) -> PickKeyFilter.Decision {
+        let (decision, generation) = lock.withLock { () -> (PickKeyFilter.Decision, UInt64?) in
+            // Paused, skipped app or input method: no new key may be picked, even if the bar
+            // hasn't gone yet. A key already taken still has its release swallowed.
+            if !_enabled || _appSkipped || _inputMethod { _pickFilter.choiceCount = 0 }
+            return (_pickFilter.decide(raw), _barGeneration)
+        }
+        if case .pick(let slot) = decision, let generation {
+            pick(slot: slot, generation: generation)
+        }
+        return decision
+    }
+
+    /// True while a swallowed pick key is still physically down.
+    public var isHoldingPickKey: Bool {
+        lock.withLock { _pickFilter.heldKey != nil }
+    }
+
+    /// The active tap stopped, so nothing more can be swallowed.
+    public func pickTapDidStop() {
+        lock.withLock { _pickFilter.releaseHeldKey() }
+    }
+
+    /// The user chose from the bar, by key or by click. Slot 0 is the word as typed. Ignored if
+    /// the bar has changed since, so a pick can't land on a different word.
+    public func pick(slot: Int, generation: UInt64) {
+        let sequence: UInt64 = lock.withLock { latestSequence &+= 1; return latestSequence }
+        queue.async { self.performPick(slot: slot, generation: generation, sequence: sequence) }
+    }
+
+    private func performPick(slot: Int, generation: UInt64, sequence: UInt64) {
+        guard let bar = shownBar, bar.generation == generation, slot < bar.choiceCount,
+              engine.suggestionWord == bar.typed else { return }
+        publish(nil)
+        guard slot > 0 else {
+            engine.keepAsTyped(bar.typed)
+            keptWord = bar.typed
+            return
+        }
+        // Wait briefly for Option to come up. A key pressed meanwhile cancels the pick.
+        for _ in 0..<40 where modifiersHeld() { usleep(10_000) }
+        let current = lock.withLock { latestSequence == sequence && _enabled && !_appSkipped && !_appCareful && !_inputMethod }
+        guard current, !secureInputCheck() else { return }
+        output.perform(KeyPlan(backspaces: bar.typed.count, text: bar.completions[slot - 1] + " "))
+        engine.didTypeCompletion()
+        watcher.didFix()
+    }
+
+    /// Runs on the engine queue after anything that can change the current word. `sequence` nil
+    /// means hide if needed whatever else is going on.
+    private func refreshSuggestions(sequence: UInt64?) {
+        let (allowed, isLatest) = lock.withLock {
+            (_suggestionsAllowed && _enabled && !_appSkipped && !_appCareful && !_inputMethod, sequence.map { $0 == latestSequence } ?? true)
+        }
+        guard allowed, let word = engine.suggestionWord else {
+            keptWord = nil
+            publish(nil)
+            return
+        }
+        if word != keptWord { keptWord = nil }
+        if keptWord != nil { publish(nil); return }
+        // More keys are on the way: don't spend time on a word that's about to change.
+        guard word != shownBar?.typed, isLatest else { return }
+        let output = self.output
+        let completions = SuggestionRules.clean(checker.completions(for: word), typed: word) { output.canType($0) }
+        nextBarGeneration &+= 1
+        publish(SuggestionBar(generation: nextBarGeneration, typed: word, completions: completions))
+    }
+
+    private func publish(_ bar: SuggestionBar?) {
+        guard bar != shownBar else { return }
+        shownBar = bar
+        lock.withLock {
+            _pickFilter.choiceCount = bar?.choiceCount ?? 0
+            _barGeneration = bar?.generation
+        }
+        hooks.didChangeSuggestions(bar)
     }
 
     /// Waits until every queued event has been handled. For tests.
@@ -137,6 +261,7 @@ public final class KeyboardBridge: @unchecked Sendable {
     }
 
     private func process(_ input: KeyInput, sequence: UInt64, careful: Bool) {
+        defer { refreshSuggestions(sequence: sequence) }
         let checker = self.checker
         let never = neverCorrect
         let (capturing, learned) = lock.withLock { (_learningCaptures && !careful, careful ? LearnedRules() : _learnedRules) }
@@ -252,8 +377,9 @@ public enum TapSupervisor {
     }
 }
 
-/// A listen-only Core Graphics event tap on its own thread. Needs Input Monitoring
-/// (`CGRequestListenEventAccess`), which works inside the App Sandbox.
+/// A listen-only Core Graphics event tap on its own thread: this one can't stop a key. Needs
+/// Input Monitoring (`CGRequestListenEventAccess`), which works inside the App Sandbox. The only
+/// tap that can stop a key is `CGPickTapBackend`, and only while the suggestion bar is showing.
 public final class KeyEventTap: KeyEventTapping, @unchecked Sendable {
     private let bridge: KeyboardBridge
     private var tap: CFMachPort?

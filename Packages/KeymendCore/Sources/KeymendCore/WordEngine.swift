@@ -62,6 +62,26 @@ public struct WordEngine: Sendable {
     /// The current partial word. Exposed for tests only.
     public var currentWord: String { buffer }
 
+    /// The word to suggest completions for, or nil when the bar shouldn't show. The same words
+    /// Keymend would fix: no code, links, paths, numbers or ALL CAPS, and never in Careful apps.
+    public var suggestionWord: String? {
+        guard !isCareful, !tainted,
+              SkipRules.skipReason(for: buffer, insideBackticks: insideBackticks) == nil else { return nil }
+        let token = Token(parsing: buffer)
+        guard token.trailing.isEmpty, token.core.count >= 2 else { return nil }
+        return token.core
+    }
+
+    /// The user picked the word as typed: it won't be autocorrected for the rest of the session.
+    public mutating func keepAsTyped(_ word: String) {
+        sessionIgnored.insert(word.lowercased())
+    }
+
+    /// A completion and a space were typed in place of the current word.
+    public mutating func didTypeCompletion() {
+        clearWord(tainted: false)
+    }
+
     /// Feeds one keystroke. `check` is asked for a correction only when a word ends.
     @discardableResult
     public mutating func handle(_ input: KeyInput, check: (String) -> String?) -> EngineAction {

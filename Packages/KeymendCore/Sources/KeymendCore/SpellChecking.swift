@@ -7,9 +7,13 @@ public protocol SpellChecking: Sendable {
     func verdict(for word: String) -> SpellVerdict
     /// True when the word is in the Mac's own "Learn Spelling" list.
     func hasLearnedWord(_ word: String) -> Bool
+    /// Words that `partial` could become. Empty if there are none, or no time to find them.
+    func completions(for partial: String) -> [String]
 }
 
 extension SpellChecking {
+    public func completions(for partial: String) -> [String] { [] }
+
     /// A confident correction for `word`, or nil to leave it alone.
     public func correction(for word: String) -> String? {
         if case .fix(let s) = verdict(for: word) { return s }
@@ -48,6 +52,13 @@ public final class AppleSpellChecker: SpellChecking, @unchecked Sendable {
     public func hasLearnedWord(_ word: String) -> Bool {
         lock.lock(); defer { lock.unlock() }
         return NSSpellChecker.shared.hasLearnedWord(word)
+    }
+
+    public func completions(for partial: String) -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        let checker = NSSpellChecker.shared
+        let range = NSRange(location: 0, length: (partial as NSString).length)
+        return checker.completions(forPartialWordRange: range, in: partial, language: checker.language(), inSpellDocumentWithTag: tag) ?? []
     }
 
     /// Adds a word to the Mac's shared "Learn Spelling" list.
@@ -111,6 +122,13 @@ public final class TimeLimitedSpellChecker: SpellChecking, @unchecked Sendable {
         }
         guard done.wait(timeout: .now() + limit) == .success else { return fallback }
         return box.get() ?? fallback
+    }
+
+    /// Running out of time, or the checker being busy, means no completions:
+    /// the bar shows only the word as typed.
+    public func completions(for partial: String) -> [String] {
+        let base = self.base
+        return run(fallback: []) { base.completions(for: partial) }
     }
 
     private final class ResultBox<T>: @unchecked Sendable {

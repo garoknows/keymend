@@ -50,6 +50,8 @@ jobs:
             exit 1
           fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
+          # The app's own version is numbers only: 1.2.0-beta.1 stamps 1.2.0 into the app.
+          echo "bundle=${V%%-*}" >> "$GITHUB_OUTPUT"
 
       # Everything the job needs is installed here, before the signing key exists on this machine.
       - name: Install XcodeGen (pinned, checksum verified)
@@ -94,11 +96,11 @@ jobs:
 
       - name: Build (Release)
         env:
-          VERSION: ${{ steps.v.outputs.version }}
+          BUNDLE: ${{ steps.v.outputs.bundle }}
         run: |
           xcodebuild -project Keymend.xcodeproj -scheme Keymend \
             -configuration Release -destination "generic/platform=macOS" \
-            -derivedDataPath build.nosync/dd MARKETING_VERSION="$VERSION" build
+            -derivedDataPath build.nosync/dd MARKETING_VERSION="$BUNDLE" build
           mkdir -p dist
           ditto "build.nosync/dd/Build/Products/Release/$APP_NAME.app" "dist/$APP_NAME.app"
           codesign --verify --deep --strict --verbose=2 "dist/$APP_NAME.app"
