@@ -4,16 +4,17 @@ Keymend fixes spelling as you type, in every Mac app, using Apple's own on-devic
 
 ### New in 1.2.0-beta.2
 - **Built on 1.1.1,** so every fix from the November 2026 review is in this beta too. beta.1 was made before those fixes and doesn't have them.
-- **Suggestions follow the same safety rules as fixes.** The bar never shows, and the pick keys always reach your app, while an input method (Chinese, Japanese, Korean and similar) is selected, while Keymend is paused, or in a skipped app. This holds even in the split second before the bar disappears.
+- **No more key-blocking event tap.** In testing, switching off Accessibility while the bar was showing froze a Mac's keyboard and mouse until a forced restart. beta.1 has the same tap: if you use beta.1, update to this beta or go back to 1.1.1. The pick keys are now system shortcuts, taken only while the bar shows. They need no permission and no key-blocking tap.
+- **New pick keys: Control+Option+1, 2, 3 and 4.** macOS may refuse shortcuts that use Option alone. Change them in Settings → General → Suggestions.
+- **Suggestions follow the same safety rules as fixes.** The bar never shows, and nothing is picked, while an input method (Chinese, Japanese, Korean and similar) is selected, while Keymend is paused, or in a skipped app.
 - **A slow spell checker can't hold up suggestions.** Completions use the same 50 ms limit as fixes, and while an earlier check is still running the bar shows only the word as typed.
 
 ### Word suggestions, on by default in this build
 - After two letters, a small bar shows your word in quotes and up to three completions from Apple's on-device spell checker.
-- **Pick with Option+1, 2, 3 or 4, or a click.** A completion is typed with a space. The quoted word stays as typed and isn't autocorrected until you quit.
-- **Keymend can block the pick keys from reaching your app, only while the bar is showing.** Every other key passes through unchanged. If Option plus a number types something you need, like # or @, choose other keys in Settings → General → Suggestions.
+- **Pick with Control+Option+1, 2, 3 or 4, or a click.** A completion is typed with a space. The quoted word stays as typed and isn't autocorrected until you quit.
+- **The pick keys go to Keymend, not your app, only while the bar is showing.** Every other key passes through unchanged.
 - **The bar sits at the bottom center of the front window, not at your cursor,** because reading the cursor's position would need more access than the App Sandbox allows. The sandbox and permissions are unchanged.
 - The bar never shows in skipped apps, Careful Mode apps like Ghostty, password fields, or while an input method is selected.
-- **Known risk:** one developer reports that turning off Accessibility while an active tap runs froze all input until a forced restart. Keymend stops its tap if either permission is lost, and clicking a switch in System Settings already hides the bar, but this hasn't been tried on a real Mac. See "Known issues" in the README on the `feature/suggestions-v2` branch.
 
 ### Fixed in 1.1.1 (also in this beta)
 - **Password fields that appear during a fix.** Keymend checks one last time, right before it types, whether a password field has focus.

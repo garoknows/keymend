@@ -150,8 +150,14 @@ public final class KeyboardBridge: @unchecked Sendable {
 
     /// Feeds one event from the tap. Returns immediately.
     public func receive(_ raw: RawKeyEvent) {
-        // A pick key the active tap already took isn't typing.
-        if raw.kind == .keyDown, lock.withLock({ _pickFilter.heldKey == raw.keyCode }) { return }
+        // A pick key isn't typing: its hot key does the pick. This tap may see the press before
+        // or after the hot key arrives, so both the held key and a pick key for a slot the bar
+        // is showing are left alone here.
+        if raw.kind == .keyDown, lock.withLock({ () -> Bool in
+            if _pickFilter.heldKey == raw.keyCode { return true }
+            guard let slot = _pickFilter.keys.slot(keyCode: raw.keyCode, flags: raw.flags) else { return false }
+            return slot < _pickFilter.choiceCount
+        }) { return }
         guard let classified = KeyEventClassifier.classify(raw) else { return }
         let (active, careful) = lock.withLock { (_enabled && !_appSkipped && !_inputMethod, _appCareful) }
         // In Careful mode only the user's own typing counts, not keys another program posts.
@@ -187,6 +193,15 @@ public final class KeyboardBridge: @unchecked Sendable {
             pick(slot: slot, generation: generation)
         }
         return decision
+    }
+
+    /// A pick hot key was pressed or released. Goes through the same rules as a key press, so a
+    /// slot the bar isn't showing, a paused Keymend or an input method all mean no pick.
+    @discardableResult
+    public func hotKey(slot: Int, pressed: Bool) -> PickKeyFilter.Decision {
+        guard PickKeys.numberRow.indices.contains(slot) else { return .pass }
+        let flags = pickKeys.modifier.flags
+        return pickDecision(for: RawKeyEvent(kind: pressed ? .keyDown : .keyUp, keyCode: PickKeys.numberRow[slot], flags: flags))
     }
 
     /// True while a swallowed pick key is still physically down.
@@ -377,9 +392,9 @@ public enum TapSupervisor {
     }
 }
 
-/// A listen-only Core Graphics event tap on its own thread: this one can't stop a key. Needs
-/// Input Monitoring (`CGRequestListenEventAccess`), which works inside the App Sandbox. The only
-/// tap that can stop a key is `CGPickTapBackend`, and only while the suggestion bar is showing.
+/// A listen-only Core Graphics event tap on its own thread: it can't stop or change a key. Needs
+/// Input Monitoring (`CGRequestListenEventAccess`), which works inside the App Sandbox. Keymend
+/// has no tap that can stop a key; the suggestion bar's pick keys are hot keys.
 public final class KeyEventTap: KeyEventTapping, @unchecked Sendable {
     private let bridge: KeyboardBridge
     private var tap: CFMachPort?

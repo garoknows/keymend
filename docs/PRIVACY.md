@@ -14,7 +14,7 @@ This page describes the 1.2.0 beta. Keymend 1.1.1, the main download, has no wor
 
 ## What it can do to your keys
 
-Normally Keymend only watches keys and can't stop or change them. While the suggestion bar is showing, an active event tap can block the pick keys, Option+1, 2, 3 and 4 by default, from reaching your app. Only a pick key for a choice the bar is showing is blocked, along with that key's repeat and release. Every other key passes through unchanged, and the tap is removed when the bar goes away. `scripts/check-privacy.sh` fails if an active tap appears anywhere else in the code.
+Keymend only watches keys and can't stop or change them. While the suggestion bar is showing, it registers the pick keys, Control+Option+1, 2, 3 and 4 by default, as system shortcuts, the same way as its Control-Option-K pause shortcut, so macOS hands those presses to Keymend instead of your app. They're released when the bar goes away. Keymend has no event tap that can stop or change a key, and `scripts/check-privacy.sh` fails if one appears in the code.
 
 ## What it keeps
 

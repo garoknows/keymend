@@ -27,7 +27,7 @@ final class AppModel: ObservableObject {
             bridge.pickKeys = PickKeys(modifier: pickModifier)
         }
     }
-    /// True when macOS refused the tap for the pick keys. The bar still works by clicking.
+    /// True when macOS refused the pick keys as hot keys. The bar still works by clicking.
     @Published private(set) var pickKeysUnavailable = false
 
     // Live state.
@@ -61,7 +61,6 @@ final class AppModel: ObservableObject {
     private let bridge: KeyboardBridge
     private let tap: KeyEventTap
     private let inputMethodPause: InputMethodPause
-    private let pickBackend: CGPickTapBackend
     private let pickTap: PickTapController
     private var barPanel: SuggestionBarPanel?
     let learning: LearningModel
@@ -85,7 +84,7 @@ final class AppModel: ObservableObject {
         defaults.register(defaults: [Keys.enabled: true, Keys.skipList: DefaultSkipList.bundleIDs, Keys.carefulList: DefaultCarefulList.bundleIDs, Keys.suggestionsEnabled: true])
         isEnabled = defaults.bool(forKey: Keys.enabled)
         suggestionsEnabled = defaults.bool(forKey: Keys.suggestionsEnabled)
-        pickModifier = defaults.string(forKey: Keys.pickModifier).flatMap(PickModifier.init(rawValue:)) ?? .option
+        pickModifier = defaults.string(forKey: Keys.pickModifier).flatMap(PickModifier.init(rawValue:)) ?? .controlOption
         skipList = defaults.stringArray(forKey: Keys.skipList) ?? DefaultSkipList.bundleIDs
         carefulList = defaults.stringArray(forKey: Keys.carefulList) ?? DefaultCarefulList.bundleIDs
         neverCorrect = NeverCorrectList(words: defaults.stringArray(forKey: Keys.neverCorrect) ?? [])
@@ -107,18 +106,14 @@ final class AppModel: ObservableObject {
         self.bridge = bridge
         tap = KeyEventTap(bridge: bridge)
         inputMethodPause = InputMethodPause(bridge: bridge)
-        let backend = CGPickTapBackend(bridge: bridge)
+        // The pick keys are hot keys, taken only while the bar shows. No event tap, so switching
+        // a permission off can't freeze input (an active tap did, in beta.2).
         let pickTap = PickTapController(
-            backend: backend,
-            hasPermission: { CGPickTapBackend.hasPermissions },
+            backend: HotKeyPickBackend(registrar: CarbonHotKeys(), modifier: { bridge.pickKeys.modifier }),
+            hasPermission: { true },
             keyHeld: { bridge.isHoldingPickKey }
         )
         pickTap.onStopped = { bridge.pickTapDidStop() }
-        // These run inside the tap's callback, which must finish before its tap is taken down.
-        backend.onKeyReleased = { DispatchQueue.global(qos: .userInitiated).async { pickTap.pickKeyReleased() } }
-        // macOS turning the tap off is a reason to stop, not to turn it back on.
-        backend.onDisabled = { DispatchQueue.global(qos: .userInitiated).async { pickTap.stopForSafety() } }
-        pickBackend = backend
         self.pickTap = pickTap
         learning = LearningModel(bridge: bridge, defaults: defaults)
         bridge.neverCorrect = neverCorrect
@@ -333,6 +328,13 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// A pick hot key went down or up. The release of a key that picked lets the hot keys go if
+    /// the bar has already gone.
+    private func pickHotKey(slot: Int, pressed: Bool) {
+        let decision = bridge.hotKey(slot: slot, pressed: pressed)
+        if !pressed, decision == .swallow { pickTap.pickKeyReleased() }
+    }
+
     private func updateFrontmostApp(_ app: NSRunningApplication?) {
         // The menu itself doesn't count as "the current app".
         if let app, app.bundleIdentifier != Bundle.main.bundleIdentifier {
@@ -364,7 +366,7 @@ final class AppModel: ObservableObject {
                 AppModel.shared.bridge.reset()
             }
         })
-        // Someone changed an Accessibility switch: stop the active tap first, then look.
+        // Someone changed an Accessibility switch: let go of the pick keys, then look.
         observers.append(DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("com.apple.accessibility.api"), object: nil, queue: .main
         ) { _ in
@@ -384,15 +386,29 @@ final class AppModel: ObservableObject {
         refreshPermissions()
     }
 
-    // MARK: Global shortcut (Control-Option-K)
+    // MARK: Hot keys: the pause shortcut (Control-Option-K) and the pick keys
+
+    private static let pauseSignature: OSType = 0x4B4D_4E44 // "KMND"
 
     private func registerHotKey() {
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
-            Task { @MainActor in AppModel.shared.togglePause() }
+        var specs = [
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased)),
+        ]
+        InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in
+            // Which hot key: every one comes through here, so a pick must never pause Keymend.
+            var hotKey = EventHotKeyID()
+            guard let event, GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                                               nil, MemoryLayout<EventHotKeyID>.size, nil, &hotKey) == noErr else { return noErr }
+            let pressed = GetEventKind(event) == UInt32(kEventHotKeyPressed)
+            if hotKey.signature == AppModel.pauseSignature, hotKey.id == 1 {
+                if pressed { Task { @MainActor in AppModel.shared.togglePause() } }
+            } else if hotKey.signature == CarbonHotKeys.signature, let slot = HotKeyPickBackend.slot(forHotKeyID: hotKey.id) {
+                MainActor.assumeIsolated { AppModel.shared.pickHotKey(slot: slot, pressed: pressed) }
+            }
             return noErr
-        }, 1, &spec, nil, nil)
-        let id = EventHotKeyID(signature: OSType(0x4B4D_4E44), id: 1) // "KMND"
+        }, specs.count, &specs, nil, nil)
+        let id = EventHotKeyID(signature: AppModel.pauseSignature, id: 1)
         RegisterEventHotKey(UInt32(kVK_ANSI_K), UInt32(controlKey | optionKey), id, GetApplicationEventTarget(), 0, &hotKeyRef)
     }
 }

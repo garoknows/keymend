@@ -22,7 +22,7 @@ Keymend is a small menu bar app that fixes them as you type, in every app. It us
 - **Your words.** A personal dictionary of words to never change. It starts empty and is shared with the Mac's own "Learn Spelling" list. Removing a word takes it off the Mac's list only if Keymend put it there.
 - **Today's count.** The menu shows how many typos it fixed today. It only counts; the count doesn't keep the words.
 - **Learning Dictionary (optional, off until you turn it on).** Learns single words you often fix or undo. You review everything in Settings → Learning. [What it stores](#learning-dictionary).
-- **Word suggestions (beta).** A small bar shows the word you're typing and up to three ways to finish it. Pick one with Option+number or a click. [How it works](#word-suggestions-beta).
+- **Word suggestions (beta).** A small bar shows the word you're typing and up to three ways to finish it. Pick one with Control+Option+number or a click. [How it works](#word-suggestions-beta).
 
 Return and Tab end a word without fixing it, on purpose: in chat apps Return sends the message immediately, and a fix typed after that would land in the empty box.
 
@@ -57,7 +57,7 @@ Keymend asks for exactly two, and nothing else:
 
 No screen recording, contacts, location or network. Files are limited to what you pick yourself in a save or open dialog, to export or import learned words.
 
-The word suggestions beta adds no permissions. It uses these same two to take the pick keys, Option+1, 2, 3 and 4 by default, [only while the bar is showing](#word-suggestions-beta).
+The word suggestions beta adds no permissions. Its pick keys are system shortcuts that need none, [taken only while the bar is showing](#word-suggestions-beta).
 
 ## Privacy, in plain English
 
@@ -172,13 +172,13 @@ Anything that makes Keymend do less applies by itself. Anything that makes it ty
 
 While you type a word, after two letters, a small bar shows the word as you typed it, in quotes, and up to three ways to finish it from Apple's on-device spell checker. Each has a number.
 
-- **Pick a completion** with Option+2, 3 or 4, or a click. Keymend types the word and a space.
-- **Pick the quoted word** with Option+1 or a click. It stays as you typed it, and Keymend won't autocorrect that word until you quit.
+- **Pick a completion** with Control+Option+2, 3 or 4, or a click. Keymend types the word and a space.
+- **Pick the quoted word** with Control+Option+1 or a click. It stays as you typed it, and Keymend won't autocorrect that word until you quit.
 - **The bar goes away** on space, punctuation, Return, Tab, Esc, a click elsewhere or switching apps. It never shows in skipped apps, Careful Mode apps like Ghostty, password fields, while an input method (Chinese, Japanese, Korean and similar) is selected, or in Keymend's own windows. Turn it off in Settings → General.
 
-**Keymend can stop these keys reaching your app, but only while the bar is showing.** At all other times it only watches keys and can't stop or change them. While the bar is up, a second part of Keymend, an active event tap, checks each key press and blocks a pick key from reaching your app, so Option+1 doesn't also type ¡. It blocks only pick keys for a choice the bar is showing, along with that key's repeat and release. Every other key goes straight through, unchanged. That tap is removed as soon as the bar goes away.
+**The pick keys are system shortcuts, taken only while the bar is showing.** While the bar is up, Keymend registers the four pick keys the same way it registers its Control-Option-K pause shortcut, so macOS hands those key presses to Keymend instead of your app. When the bar goes away they're released, and the keys work as usual. Keymend never stops or changes any other key: it only watches them.
 
-**Option plus a number types something on some keyboards**, like # on British, @ on Portuguese and { on Italian. If you need one of those, choose different keys in Settings → General → Suggestions.
+**Why not Option alone:** beta.2 used Option+1 to 4 and an "active event tap" to stop them reaching your app. Switching off Accessibility while that tap was running froze a real Mac's keyboard and mouse until a forced restart. Shortcuts need no key-blocking tap and no permission. Recent versions of macOS may refuse shortcuts that use Option alone; if a choice in Settings → General → Suggestions is refused, Settings says so and clicking still works.
 
 **The bar sits at the bottom center of the front window, not at your cursor.** Reading the cursor's position would need more access to other apps than the App Sandbox allows. Keymend reads only the front window's position and size, never its title or contents. If it can't get those, the bar sits at the bottom center of the screen.
 
@@ -186,15 +186,14 @@ While you type a word, after two letters, a small bar shows the word as you type
 
 ### Known issues in the suggestions beta
 
-- **Turning off a permission while the bar is up could freeze your Mac's input.** One developer [reports](https://developer.apple.com/forums/thread/844416) that turning off Accessibility while an active tap is running froze all keyboard and mouse input until a forced restart. Apple hasn't given a fix. Keymend stops its tap if either permission is lost: clicking anywhere, including on the switch in System Settings, hides the bar and removes the tap, macOS's notice of an Accessibility change stops it at once, and Keymend re-checks both permissions 4 times a second while it runs. That leaves a very short window, and a change made without a click, such as by a management tool, could still land in it. The tests use a stand-in for the tap, so this hasn't been tried on a real Mac. If input ever freezes, hold the power button to restart, and please [open an issue](https://github.com/garoknows/keymend/issues).
-- **Not yet proven on a real Mac:** that macOS lets a sandboxed app's tap block keys, that the bar's clicks leave focus in your app, and that its position is right. If macOS refuses the tap, the pick keys type as usual, Settings says so, and clicking still works.
+- **Not yet proven on a real Mac:** that the pick shortcuts reach Keymend and not your app, that the bar's clicks leave focus in your app, and that its position is right. If macOS refuses the shortcuts, Settings says so and clicking still works.
 - **The bar may show only your word at first.** Just after Apple's spell service starts, it can answer with no completions for a moment. They appear as you keep typing.
-- **Picking waits briefly for you to let go of Option,** up to 0.4 seconds, so Option can't change what Keymend types. A key pressed during that wait cancels the pick.
+- **Picking waits briefly for you to let go of Control and Option,** up to 0.4 seconds, so they can't change what Keymend types. A key pressed during that wait cancels the pick.
 - **A completion can land wrongly if a key arrives in the instant it's being typed,** the same limit as fixes.
 
 ## How it works
 
-Keymend watches key presses with an event tap that can't stop or change them. (The suggestions beta adds [a second one that can](#word-suggestions-beta), only while its bar is showing.) When a word ends, it asks `NSSpellChecker` (the same on-device engine as Mac autocorrect) for a correction, giving up after 50 ms. If an earlier check is still running, it doesn't wait for it and leaves the word alone. If there is a correction, it presses Delete once per character of the word and the punctuation after it, then types the correction. If you've already pressed another key by then, it drops the fix. That covers most fast typing, but a key pressed in the instant the fix is being typed can still land in the middle of it, so a word can occasionally come out garbled. If you see that, please [open an issue](https://github.com/garoknows/keymend/issues).
+Keymend watches key presses with an event tap that can't stop or change them. When a word ends, it asks `NSSpellChecker` (the same on-device engine as Mac autocorrect) for a correction, giving up after 50 ms. If an earlier check is still running, it doesn't wait for it and leaves the word alone. If there is a correction, it presses Delete once per character of the word and the punctuation after it, then types the correction. If you've already pressed another key by then, it drops the fix. That covers most fast typing, but a key pressed in the instant the fix is being typed can still land in the middle of it, so a word can occasionally come out garbled. If you see that, please [open an issue](https://github.com/garoknows/keymend/issues).
 
 If Keymend can't be sure where the cursor is (after a click, an arrow key, a shortcut or switching apps, or when a fix or undo had to be dropped), it leaves the next word alone.
 

@@ -39,11 +39,12 @@ else pass "No third-party packages"; fi
 if grep -rn -i -E 'analytics|telemetry|crashlytics|sentry|sparkle' "${SRC[@]}" >/dev/null; then
   bad "Analytics or updater code found"
 else pass "No analytics, crash reporters or auto-updater"; fi
-# Exactly one tap may stop keys, and it must stay behind the permission watchdog.
-ACTIVE=$(grep -rln -E 'options: *\.defaultTap' "${SRC[@]}")
-if [ "$ACTIVE" = "$ROOT/Packages/KeymendCore/Sources/KeymendCore/PickKeyTap.swift" ] && [ "$(grep -rn -E 'options: *\.defaultTap' "${SRC[@]}" | wc -l | tr -d ' ')" = "1" ]; then
-  pass "The only tap that can stop a key is the pick-key tap"
-else bad "An active event tap exists outside PickKeyTap.swift: $ACTIVE"; fi
+# No tap may stop or change keys: an active tap froze a Mac in beta.2 when Accessibility was
+# switched off. The pick keys are hot keys. Every event tap must be listen-only.
+if grep -rn -E '\.defaultTap|kCGEventTapOptionDefault' "${SRC[@]}" >/dev/null || \
+   [ "$(grep -rn -E 'tapCreate' "${SRC[@]}" | wc -l | tr -d ' ')" != "$(grep -rn -E 'options: *\.listenOnly' "${SRC[@]}" | wc -l | tr -d ' ')" ]; then
+  bad "An event tap that can stop or change keys exists:"; grep -rn -E '\.defaultTap|kCGEventTapOptionDefault|tapCreate' "${SRC[@]}"
+else pass "Every event tap is listen-only: nothing can stop or change a key"; fi
 if grep -rn -E 'AXUIElement|AXIsProcessTrusted|kAXBoundsForRange|kAXFocused' "${SRC[@]}" >/dev/null; then
   bad "Accessibility API that reads other apps found"
 else pass "No Accessibility API that reads other apps"; fi

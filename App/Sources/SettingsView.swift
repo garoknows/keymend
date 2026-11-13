@@ -46,7 +46,7 @@ struct GeneralTab: View {
                     ForEach(PickModifier.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
                 .disabled(!model.suggestionsEnabled)
-                Text("While the bar is showing, these keys pick a word instead of reaching your app. If Option plus a number types something you need, like # or @, choose another.")
+                Text("While the bar is showing, these keys pick a word instead of reaching your app. If one is refused by macOS, or types something you need, choose another.")
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if model.pickKeysUnavailable {
